@@ -1,0 +1,17 @@
+# Build outputs
+build/
+*.o
+*.so
+*.a
+a.out*
+*.bak
+
+# Editor
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
