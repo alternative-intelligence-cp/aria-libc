@@ -74,9 +74,9 @@ func:assert_gt = NIL(int64:actual, int64:threshold, string:msg) {
     pass(NIL);
 };
 
-func:failsafe = NIL(int32:code) {
+func:failsafe = int32(tbb32:err) {
     drop(print("FAILSAFE triggered"));
-    pass(NIL);
+    exit(1);
 };
 
 func:main = int32() {
@@ -261,5 +261,5 @@ func:main = int32() {
         drop(print("SOME TESTS FAILED"));
     }
 
-    pass(0i32);
+    exit(0);
 };
