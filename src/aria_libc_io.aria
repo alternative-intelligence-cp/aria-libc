@@ -4,18 +4,10 @@
 // via the aria_libc_io C shim. Use these instead of writing your own
 // extern blocks for POSIX I/O.
 //
-// NOTE: Due to compiler bugs BUG-001 and BUG-002 (see META/ARIA/BUGS),
-// the pub func wrappers below cannot currently be imported via `use`.
-// Result<T> types are lost across file boundaries, and extern block
-// deps are not resolved in the importing file.
-//
-// WORKAROUND: Consumers should declare their own extern "aria_libc_io"
-// block and call the C functions directly (sqlite-style pattern).
-// See tests/test_libc_io.aria for the working pattern.
-//
-// Once BUG-001/002 are fixed, consumers can switch to:
-//   use "aria_libc_io.aria".*;
-//   int64:fd = raw(libc_open_read("/tmp/test.txt"));
+// Usage:
+//   use "../src/aria_libc_io.aria".*;
+//   int64:bytes = raw(libc_write_file("/tmp/test.txt", "hello"));
+//   string:content = raw(libc_read_file("/tmp/test.txt"));
 
 // ── Extern declarations (individual — propagates through use) ────────
 
