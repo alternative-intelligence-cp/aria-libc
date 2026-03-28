@@ -1,0 +1,302 @@
+// aria_libc_io.aria — Aria wrappers for libc I/O functions
+//
+// Provides file I/O, stat, directory operations, and read buffers
+// via the aria_libc_io C shim. Use these instead of writing your own
+// extern blocks for POSIX I/O.
+//
+// NOTE: Due to compiler bugs BUG-001 and BUG-002 (see META/ARIA/BUGS),
+// the pub func wrappers below cannot currently be imported via `use`.
+// Result<T> types are lost across file boundaries, and extern block
+// deps are not resolved in the importing file.
+//
+// WORKAROUND: Consumers should declare their own extern "aria_libc_io"
+// block and call the C functions directly (sqlite-style pattern).
+// See tests/test_libc_io.aria for the working pattern.
+//
+// Once BUG-001/002 are fixed, consumers can switch to:
+//   use "aria_libc_io.aria".*;
+//   int64:fd = raw(libc_open_read("/tmp/test.txt"));
+
+// ── Extern declarations (individual — propagates through use) ────────
+
+extern func:aria_libc_io_errno = int64();
+extern func:aria_libc_io_strerror = string(int64:errnum);
+
+// File descriptor operations
+extern func:aria_libc_io_open = int64(string:path, int64:flags, int64:mode);
+extern func:aria_libc_io_close = int64(int64:fd);
+extern func:aria_libc_io_write_string = int64(int64:fd, string:data);
+extern func:aria_libc_io_seek = int64(int64:fd, int64:offset, int64:whence);
+
+// Buffer-based read/write
+extern func:aria_libc_io_buf_create = int64(int64:capacity);
+extern func:aria_libc_io_buf_release = int64(int64:buf_id);
+extern func:aria_libc_io_buf_size = int64(int64:buf_id);
+extern func:aria_libc_io_buf_to_string = string(int64:buf_id);
+extern func:aria_libc_io_read = int64(int64:fd, int64:buf_id, int64:count);
+extern func:aria_libc_io_write_bytes = int64(int64:fd, int64:buf_id, int64:count);
+
+// Stat operations
+extern func:aria_libc_io_stat_size = int64(string:path);
+extern func:aria_libc_io_stat_mode = int64(string:path);
+extern func:aria_libc_io_stat_mtime = int64(string:path);
+extern func:aria_libc_io_stat_is_dir = int64(string:path);
+extern func:aria_libc_io_stat_is_file = int64(string:path);
+extern func:aria_libc_io_stat_exists = int64(string:path);
+
+// Directory operations
+extern func:aria_libc_io_mkdir = int64(string:path, int64:mode);
+extern func:aria_libc_io_rmdir = int64(string:path);
+extern func:aria_libc_io_unlink = int64(string:path);
+extern func:aria_libc_io_rename = int64(string:old_path, string:new_path);
+extern func:aria_libc_io_opendir = int64(string:path);
+extern func:aria_libc_io_readdir_next = string(int64:dir_id);
+extern func:aria_libc_io_closedir = int64(int64:dir_id);
+
+// Convenience: whole-file read/write
+extern func:aria_libc_io_read_file = string(string:path);
+extern func:aria_libc_io_write_file = int64(string:path, string:content);
+extern func:aria_libc_io_append_file = int64(string:path, string:content);
+
+// POSIX flag constants
+extern func:aria_libc_io_O_RDONLY = int64();
+extern func:aria_libc_io_O_WRONLY = int64();
+extern func:aria_libc_io_O_RDWR = int64();
+extern func:aria_libc_io_O_CREAT = int64();
+extern func:aria_libc_io_O_TRUNC = int64();
+extern func:aria_libc_io_O_APPEND = int64();
+extern func:aria_libc_io_SEEK_SET = int64();
+extern func:aria_libc_io_SEEK_CUR = int64();
+extern func:aria_libc_io_SEEK_END = int64();
+
+// ── Public API ───────────────────────────────────────────────────────
+// These wrap the extern functions with idiomatic Aria conventions.
+// All use Result types via pass() for proper error handling.
+
+// -- Error helpers --
+
+pub func:libc_errno = int64() {
+    int64:code = aria_libc_io_errno();
+    pass(code);
+};
+
+pub func:libc_strerror = string(int64:errnum) {
+    string:msg = aria_libc_io_strerror(errnum);
+    pass(msg);
+};
+
+// -- File operations --
+
+pub func:libc_open = int64(string:path, int64:flags, int64:mode) {
+    int64:fd = aria_libc_io_open(path, flags, mode);
+    pass(fd);
+};
+
+pub func:libc_open_read = int64(string:path) {
+    int64:flags = aria_libc_io_O_RDONLY();
+    int64:fd = aria_libc_io_open(path, flags, 0i64);
+    pass(fd);
+};
+
+pub func:libc_open_write = int64(string:path) {
+    int64:flags = aria_libc_io_O_WRONLY();
+    int64:creat = aria_libc_io_O_CREAT();
+    int64:trunc = aria_libc_io_O_TRUNC();
+    int64:combined = flags + creat + trunc;
+    int64:fd = aria_libc_io_open(path, combined, 420i64);
+    pass(fd);
+};
+
+pub func:libc_open_append = int64(string:path) {
+    int64:flags = aria_libc_io_O_WRONLY();
+    int64:creat = aria_libc_io_O_CREAT();
+    int64:append = aria_libc_io_O_APPEND();
+    int64:combined = flags + creat + append;
+    int64:fd = aria_libc_io_open(path, combined, 420i64);
+    pass(fd);
+};
+
+pub func:libc_close = int64(int64:fd) {
+    int64:result = aria_libc_io_close(fd);
+    pass(result);
+};
+
+pub func:libc_write = int64(int64:fd, string:data) {
+    int64:written = aria_libc_io_write_string(fd, data);
+    pass(written);
+};
+
+pub func:libc_seek = int64(int64:fd, int64:offset, int64:whence) {
+    int64:pos = aria_libc_io_seek(fd, offset, whence);
+    pass(pos);
+};
+
+// -- Buffer operations --
+
+pub func:libc_buf_create = int64(int64:capacity) {
+    int64:buf_id = aria_libc_io_buf_create(capacity);
+    pass(buf_id);
+};
+
+pub func:libc_buf_release = int64(int64:buf_id) {
+    int64:result = aria_libc_io_buf_release(buf_id);
+    pass(result);
+};
+
+pub func:libc_buf_size = int64(int64:buf_id) {
+    int64:sz = aria_libc_io_buf_size(buf_id);
+    pass(sz);
+};
+
+pub func:libc_buf_to_string = string(int64:buf_id) {
+    string:content = aria_libc_io_buf_to_string(buf_id);
+    pass(content);
+};
+
+pub func:libc_read = int64(int64:fd, int64:buf_id, int64:count) {
+    int64:n = aria_libc_io_read(fd, buf_id, count);
+    pass(n);
+};
+
+pub func:libc_write_bytes = int64(int64:fd, int64:buf_id, int64:count) {
+    int64:written = aria_libc_io_write_bytes(fd, buf_id, count);
+    pass(written);
+};
+
+// -- Stat operations --
+
+pub func:libc_stat_size = int64(string:path) {
+    int64:sz = aria_libc_io_stat_size(path);
+    pass(sz);
+};
+
+pub func:libc_stat_mode = int64(string:path) {
+    int64:mode = aria_libc_io_stat_mode(path);
+    pass(mode);
+};
+
+pub func:libc_stat_mtime = int64(string:path) {
+    int64:mtime = aria_libc_io_stat_mtime(path);
+    pass(mtime);
+};
+
+pub func:libc_stat_is_dir = int64(string:path) {
+    int64:result = aria_libc_io_stat_is_dir(path);
+    pass(result);
+};
+
+pub func:libc_stat_is_file = int64(string:path) {
+    int64:result = aria_libc_io_stat_is_file(path);
+    pass(result);
+};
+
+pub func:libc_stat_exists = int64(string:path) {
+    int64:result = aria_libc_io_stat_exists(path);
+    pass(result);
+};
+
+// -- Directory operations --
+
+pub func:libc_mkdir = int64(string:path, int64:mode) {
+    int64:result = aria_libc_io_mkdir(path, mode);
+    pass(result);
+};
+
+pub func:libc_mkdir_default = int64(string:path) {
+    int64:result = aria_libc_io_mkdir(path, 493i64);
+    pass(result);
+};
+
+pub func:libc_rmdir = int64(string:path) {
+    int64:result = aria_libc_io_rmdir(path);
+    pass(result);
+};
+
+pub func:libc_unlink = int64(string:path) {
+    int64:result = aria_libc_io_unlink(path);
+    pass(result);
+};
+
+pub func:libc_rename = int64(string:old_path, string:new_path) {
+    int64:result = aria_libc_io_rename(old_path, new_path);
+    pass(result);
+};
+
+pub func:libc_opendir = int64(string:path) {
+    int64:dir_id = aria_libc_io_opendir(path);
+    pass(dir_id);
+};
+
+pub func:libc_readdir_next = string(int64:dir_id) {
+    string:entry = aria_libc_io_readdir_next(dir_id);
+    pass(entry);
+};
+
+pub func:libc_closedir = int64(int64:dir_id) {
+    int64:result = aria_libc_io_closedir(dir_id);
+    pass(result);
+};
+
+// -- Convenience: whole-file operations --
+
+pub func:libc_read_file = string(string:path) {
+    string:content = aria_libc_io_read_file(path);
+    pass(content);
+};
+
+pub func:libc_write_file = int64(string:path, string:content) {
+    int64:written = aria_libc_io_write_file(path, content);
+    pass(written);
+};
+
+pub func:libc_append_file = int64(string:path, string:content) {
+    int64:written = aria_libc_io_append_file(path, content);
+    pass(written);
+};
+
+// -- POSIX constants --
+
+pub func:libc_O_RDONLY = int64() {
+    int64:val = aria_libc_io_O_RDONLY();
+    pass(val);
+};
+
+pub func:libc_O_WRONLY = int64() {
+    int64:val = aria_libc_io_O_WRONLY();
+    pass(val);
+};
+
+pub func:libc_O_RDWR = int64() {
+    int64:val = aria_libc_io_O_RDWR();
+    pass(val);
+};
+
+pub func:libc_O_CREAT = int64() {
+    int64:val = aria_libc_io_O_CREAT();
+    pass(val);
+};
+
+pub func:libc_O_TRUNC = int64() {
+    int64:val = aria_libc_io_O_TRUNC();
+    pass(val);
+};
+
+pub func:libc_O_APPEND = int64() {
+    int64:val = aria_libc_io_O_APPEND();
+    pass(val);
+};
+
+pub func:libc_SEEK_SET = int64() {
+    int64:val = aria_libc_io_SEEK_SET();
+    pass(val);
+};
+
+pub func:libc_SEEK_CUR = int64() {
+    int64:val = aria_libc_io_SEEK_CUR();
+    pass(val);
+};
+
+pub func:libc_SEEK_END = int64() {
+    int64:val = aria_libc_io_SEEK_END();
+    pass(val);
+};

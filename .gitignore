@@ -6,6 +6,13 @@ build/
 a.out*
 *.bak
 
+# Test binaries
+tests/test_libc_io
+tests/test_libc_io_*
+
+# musl source (large, download separately)
+musl-1.2.6/
+
 # Editor
 .vscode/
 *.swp
