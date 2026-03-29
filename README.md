@@ -8,15 +8,15 @@ aria-libc provides Aria-native wrappers around C standard library (libc) functio
 
 ## Why?
 
-1. **No more extern boilerplate** — Ready-made wrappers for I/O, memory, strings, math, time, process, and networking functions
+1. **No more extern boilerplate** — Ready-made wrappers for I/O, memory, strings, math, time, process, networking, and POSIX functions
 2. **Static builds** — Link against musl instead of glibc for zero-dependency, fully portable binaries
 3. **One canonical source** — Tested, documented libc wrappers the whole ecosystem can depend on
 
 ## Status
 
-**v0.1.1** — Networking module (BSD sockets, address resolution). 342 tests passing across 14 test suites (7 modules × 2 link modes).
+**v0.1.2** — Extended POSIX module (signals, fork/exec, pipe, mmap). 441 tests passing across 16 test suites (8 modules × 2 link modes).
 
-All 7 modules fully implemented:
+All 8 modules fully implemented:
 - Dynamic linking via glibc (default)
 - **Static linking via musl** — zero runtime dependencies
 
@@ -50,6 +50,7 @@ aria-libc/
 | **time** | time_now, clock, sleep, usleep, time_format, time_format_utc, time_diff | 10 |
 | **process** | getenv, setenv, unsetenv, run (system), getpid, getppid, getuid, getgid, getcwd, chdir, errno, strerror | 25 |
 | **net** | socket, close, shutdown, bind, listen, accept, connect, send, recv, sendto, recvfrom, setsockopt, getsockopt, set_nonblocking, poll, resolve (getaddrinfo), gethostname, inet_aton/ntoa, htons/ntohs/htonl/ntohl, tcp_connect, tcp_listen | 80 |
+| **posix** | signal_trap/check/reset/ignore, raise, kill, fork, waitpid, wait_exited/status/signaled/termsig, exec_shell, spawn, spawn_bg, pipe_create/read_fd/write_fd, dup, dup2, fd_write_string/read_string/close, mmap, munmap, mprotect, msync, mmap byte/int64/string R/W | 99 |
 
 ### Link Modes
 

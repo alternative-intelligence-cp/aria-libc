@@ -1,0 +1,195 @@
+// test_use_posix.aria — Use-import tests for aria-libc Extended POSIX
+//
+// Compile:
+//   ariac test_use_posix.aria -o test_use_posix -L../shim -laria_libc_posix
+//
+// Run:
+//   LD_LIBRARY_PATH=../shim ./test_use_posix
+
+use "../src/aria_libc_posix.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_gt = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual > threshold) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected > " + string_from_int(threshold)));
+        drop(print("    actual:    " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_gte = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual >= threshold) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected >= " + string_from_int(threshold)));
+        drop(print("    actual:     " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: Use-import signal constants + handling
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_use_signals = NIL() {
+    drop(println("=== Use-Import: Signals ==="));
+
+    drop(assert_gt(raw(libc_SIGUSR1()), 0i64, "libc_SIGUSR1 > 0"));
+    drop(assert_gt(raw(libc_SIGTERM()), 0i64, "libc_SIGTERM > 0"));
+    drop(assert_gt(raw(libc_SIGINT()), 0i64, "libc_SIGINT > 0"));
+
+    // Trap + raise + check cycle
+    int64:sigusr1 = raw(libc_SIGUSR1());
+    int64:trc = raw(libc_posix_signal_trap(sigusr1));
+    drop(assert_eq(trc, 0i64, "libc_posix_signal_trap returns 0"));
+
+    int64:rrc = raw(libc_posix_raise(sigusr1));
+    drop(assert_eq(rrc, 0i64, "libc_posix_raise returns 0"));
+
+    int64:chk = raw(libc_posix_signal_check(sigusr1));
+    drop(assert_eq(chk, 1i64, "libc_posix_signal_check = 1 after raise"));
+
+    int64:rst = raw(libc_posix_signal_reset(sigusr1));
+    drop(assert_eq(rst, 0i64, "libc_posix_signal_reset returns 0"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: Use-import spawn
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_use_spawn = NIL() {
+    drop(println("=== Use-Import: Spawn ==="));
+
+    int64:rc = raw(libc_posix_spawn("true"));
+    drop(assert_eq(rc, 0i64, "libc_posix_spawn(true) = 0"));
+
+    int64:rc2 = raw(libc_posix_spawn("false"));
+    drop(assert_gt(rc2, 0i64, "libc_posix_spawn(false) > 0"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: Use-import pipe
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_use_pipe = NIL() {
+    drop(println("=== Use-Import: Pipe ==="));
+
+    int64:rc = raw(libc_posix_pipe_create());
+    drop(assert_eq(rc, 0i64, "libc_posix_pipe_create = 0"));
+
+    int64:rfd = raw(libc_posix_pipe_read_fd());
+    int64:wfd = raw(libc_posix_pipe_write_fd());
+    drop(assert_gte(rfd, 0i64, "read fd >= 0"));
+    drop(assert_gte(wfd, 0i64, "write fd >= 0"));
+
+    int64:written = raw(libc_posix_fd_write_string(wfd, "use test"));
+    drop(assert_eq(written, 8i64, "wrote 8 bytes"));
+
+    drop(libc_posix_fd_close(wfd));
+
+    string:data = raw(libc_posix_fd_read_string(rfd, 256i64));
+    drop(assert_str_eq(data, "use test", "pipe read matches"));
+
+    drop(libc_posix_fd_close(rfd));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: Use-import mmap
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_use_mmap = NIL() {
+    drop(println("=== Use-Import: mmap ==="));
+
+    int64:prot = raw(libc_PROT_READ()) + raw(libc_PROT_WRITE());
+    int64:flags = raw(libc_MAP_PRIVATE()) + raw(libc_MAP_ANONYMOUS());
+
+    int64:handle = raw(libc_posix_mmap(4096i64, prot, flags, 0i64 - 1i64, 0i64));
+    drop(assert_gte(handle, 0i64, "libc_posix_mmap returns valid handle"));
+
+    int64:wrc = raw(libc_posix_mmap_write_byte(handle, 0i64, 99i64));
+    drop(assert_eq(wrc, 0i64, "libc_posix_mmap_write_byte returns 0"));
+
+    int64:rb = raw(libc_posix_mmap_read_byte(handle, 0i64));
+    drop(assert_eq(rb, 99i64, "libc_posix_mmap_read_byte = 99"));
+
+    int64:slen = raw(libc_posix_mmap_from_string(handle, 100i64, "mmap-use"));
+    drop(assert_eq(slen, 8i64, "wrote 8-byte string"));
+
+    string:sdata = raw(libc_posix_mmap_to_string(handle, 100i64, 8i64));
+    drop(assert_str_eq(sdata, "mmap-use", "string roundtrip via use-import"));
+
+    int64:urc = raw(libc_posix_munmap(handle));
+    drop(assert_eq(urc, 0i64, "libc_posix_munmap returns 0"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Main
+// ══════════════════════════════════════════════════════════════════════
+
+func:failsafe = int32(tbb32:err) {
+    drop(println("FAILSAFE triggered"));
+    exit(1i32);
+};
+
+func:main = int32() {
+    drop(println("aria-libc POSIX Use-Import Tests"));
+    drop(println("================================"));
+
+    drop(test_use_signals());
+    drop(test_use_spawn());
+    drop(test_use_pipe());
+    drop(test_use_mmap());
+
+    drop(println("================================"));
+    drop(print("PASS: " + string_from_int(pass_count)));
+    drop(print("FAIL: " + string_from_int(fail_count)));
+
+    if (fail_count > 0i64) {
+        exit(1i32);
+    }
+    exit(0i32);
+};

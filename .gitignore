@@ -20,6 +20,10 @@ tests/test_use_time
 tests/test_libc_process
 tests/test_use_process
 tests/test_use_import
+tests/test_libc_net
+tests/test_use_net
+tests/test_libc_posix
+tests/test_use_posix
 
 # musl source (large, download separately)
 musl-1.2.6/
