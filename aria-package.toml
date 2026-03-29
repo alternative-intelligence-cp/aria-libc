@@ -1,6 +1,6 @@
 [package]
 name        = "aria-libc"
-version     = "0.0.4"
+version     = "0.1.0"
 description = "Standard C library wrappers for Aria — libc without the boilerplate"
 license     = "Apache-2.0"
 repository  = "https://github.com/alternative-intelligence-cp/aria-libc"

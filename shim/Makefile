@@ -11,7 +11,7 @@ OBJECTS := $(patsubst %,%.o,$(MODULES))
 
 .PHONY: all clean dynamic static
 
-all: dynamic static
+all: dynamic static libglibc_compat.a
 
 dynamic: $(SHARED)
 
@@ -27,5 +27,12 @@ lib%.so: %.c
 lib%.a: %.o
 	ar rcs $@ $<
 
+# glibc compat shim for musl static linking
+libglibc_compat.a: glibc_compat.o
+	ar rcs $@ $<
+
+glibc_compat.o: glibc_compat.c
+	$(CC) -O2 -Wall -Wextra -Wno-unused-parameter -c -o $@ $< -I$(MUSL_DIR)/include
+
 clean:
-	rm -f $(SHARED) $(STATIC) $(OBJECTS)
+	rm -f $(SHARED) $(STATIC) $(OBJECTS) glibc_compat.o libglibc_compat.a
