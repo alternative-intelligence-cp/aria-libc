@@ -1,0 +1,212 @@
+// test_use_fs.aria — Use-import test for aria-libc filesystem extras
+//
+// Compile:
+//   ariac test_use_fs.aria -o test_use_fs -L../shim -laria_libc_fs -laria_libc_io
+//
+// Run:
+//   LD_LIBRARY_PATH=../shim ./test_use_fs
+
+use "../src/aria_libc_fs.aria".*;
+
+// We need io for file creation/cleanup
+extern "aria_libc_io" {
+    func:aria_libc_io_write_file = int64(string:path, string:content);
+    func:aria_libc_io_read_file = string(string:path);
+    func:aria_libc_io_unlink = int64(string:path);
+    func:aria_libc_io_rmdir = int64(string:path);
+    func:aria_libc_io_close = int64(int64:fd);
+}
+
+// ══════════════════════════════════════════════════════════════════
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+    }
+    pass(NIL);
+};
+
+func:assert_gt = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual > threshold) {
+        drop(print("  PASS: " + msg));
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected > " + string_from_int(threshold)));
+        drop(print("    actual:    " + string_from_int(actual)));
+    }
+    pass(NIL);
+};
+
+func:assert_gte = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual >= threshold) {
+        drop(print("  PASS: " + msg));
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected >= " + string_from_int(threshold)));
+        drop(print("    actual:     " + string_from_int(actual)));
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+    }
+    pass(NIL);
+};
+
+func:assert_str_ne = NIL(string:actual, string:unexpected, string:msg) {
+    if (actual != unexpected) {
+        drop(print("  PASS: " + msg));
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    should not be: " + unexpected));
+    }
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════
+// Test functions — all pub func calls wrapped with raw()
+// ══════════════════════════════════════════════════════════════════
+
+func:test_use_constants = NIL() {
+    drop(println("=== Use Constants ==="));
+
+    int64:f = raw(libc_fs_F_OK());
+    int64:r = raw(libc_fs_R_OK());
+    int64:w = raw(libc_fs_W_OK());
+    int64:x = raw(libc_fs_X_OK());
+    drop(assert_gte(f, 0i64, "F_OK >= 0"));
+    drop(assert_gt(r, 0i64, "R_OK > 0"));
+    drop(assert_gt(w, 0i64, "W_OK > 0"));
+    drop(assert_gt(x, 0i64, "X_OK > 0"));
+
+    int64:irwxu = raw(libc_fs_S_IRWXU());
+    drop(assert_gt(irwxu, 0i64, "S_IRWXU > 0"));
+
+    int64:pn = raw(libc_fs_FNM_PATHNAME());
+    drop(assert_gt(pn, 0i64, "FNM_PATHNAME > 0"));
+
+    pass(NIL);
+};
+
+func:test_use_access_chmod = NIL() {
+    drop(println("=== Use Access + Chmod ==="));
+
+    int64:wrc = aria_libc_io_write_file("/tmp/aria_use_fs_test.txt", "test");
+    drop(assert_gte(wrc, 0i64, "create test file"));
+
+    int64:f = raw(libc_fs_F_OK());
+    int64:rc = raw(libc_fs_access("/tmp/aria_use_fs_test.txt", f));
+    drop(assert_eq(rc, 0i64, "access F_OK via use"));
+
+    int64:irusr = raw(libc_fs_S_IRUSR());
+    int64:crc = raw(libc_fs_chmod("/tmp/aria_use_fs_test.txt", irusr));
+    drop(assert_eq(crc, 0i64, "chmod via use"));
+
+    // Restore and clean up
+    int64:irwxu = raw(libc_fs_S_IRWXU());
+    drop(raw(libc_fs_chmod("/tmp/aria_use_fs_test.txt", irwxu)));
+    drop(aria_libc_io_unlink("/tmp/aria_use_fs_test.txt"));
+    pass(NIL);
+};
+
+func:test_use_symlink = NIL() {
+    drop(println("=== Use Symlink ==="));
+
+    int64:wrc = aria_libc_io_write_file("/tmp/aria_use_fs_sym_target.txt", "hello");
+    drop(assert_gte(wrc, 0i64, "create target"));
+
+    int64:rc = raw(libc_fs_symlink("/tmp/aria_use_fs_sym_target.txt", "/tmp/aria_use_fs_sym_link.txt"));
+    drop(assert_eq(rc, 0i64, "symlink via use"));
+
+    string:target = raw(libc_fs_readlink("/tmp/aria_use_fs_sym_link.txt"));
+    drop(assert_str_eq(target, "/tmp/aria_use_fs_sym_target.txt", "readlink via use"));
+
+    drop(aria_libc_io_unlink("/tmp/aria_use_fs_sym_link.txt"));
+    drop(aria_libc_io_unlink("/tmp/aria_use_fs_sym_target.txt"));
+    pass(NIL);
+};
+
+func:test_use_realpath_fnmatch = NIL() {
+    drop(println("=== Use Realpath + fnmatch ==="));
+
+    string:resolved = raw(libc_fs_realpath("/tmp"));
+    drop(assert_str_ne(resolved, "", "realpath via use"));
+
+    int64:rc = raw(libc_fs_fnmatch("*.txt", "hello.txt", 0i64));
+    drop(assert_eq(rc, 0i64, "fnmatch via use"));
+
+    int64:rc2 = raw(libc_fs_fnmatch("*.txt", "hello.md", 0i64));
+    drop(assert_gt(rc2, 0i64, "fnmatch no-match via use"));
+
+    pass(NIL);
+};
+
+func:test_use_mkdtemp = NIL() {
+    drop(println("=== Use mkdtemp ==="));
+
+    string:dir = raw(libc_fs_mkdtemp("/tmp/aria_use_fs_XXXXXX"));
+    drop(assert_str_ne(dir, "", "mkdtemp via use"));
+
+    int64:f = raw(libc_fs_F_OK());
+    int64:rc = raw(libc_fs_access(dir, f));
+    drop(assert_eq(rc, 0i64, "mkdtemp dir accessible via use"));
+
+    drop(aria_libc_io_rmdir(dir));
+    pass(NIL);
+};
+
+func:test_use_glob = NIL() {
+    drop(println("=== Use Glob ==="));
+
+    drop(aria_libc_io_write_file("/tmp/aria_use_glob_x.txt", "x"));
+    drop(aria_libc_io_write_file("/tmp/aria_use_glob_y.txt", "y"));
+
+    int64:h = raw(libc_fs_glob_open("/tmp/aria_use_glob_*.txt"));
+    drop(assert_gte(h, 0i64, "glob_open via use"));
+
+    int64:c = raw(libc_fs_glob_count(h));
+    drop(assert_gte(c, 2i64, "glob count >= 2 via use"));
+
+    string:p = raw(libc_fs_glob_path(h, 0i64));
+    drop(assert_str_ne(p, "", "glob_path via use"));
+
+    drop(raw(libc_fs_glob_close(h)));
+
+    drop(aria_libc_io_unlink("/tmp/aria_use_glob_x.txt"));
+    drop(aria_libc_io_unlink("/tmp/aria_use_glob_y.txt"));
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════
+// Main
+// ══════════════════════════════════════════════════════════════════
+
+func:failsafe = int32(tbb32:err) {
+    drop(println("Failsafe triggered"));
+    exit(1i32);
+};
+
+func:main = int32() {
+    drop(println("aria-libc Filesystem Use-Import Tests"));
+    drop(println("====================================="));
+
+    drop(test_use_constants());
+    drop(test_use_access_chmod());
+    drop(test_use_symlink());
+    drop(test_use_realpath_fnmatch());
+    drop(test_use_mkdtemp());
+    drop(test_use_glob());
+
+    drop(println("====================================="));
+    exit(0i32);
+};

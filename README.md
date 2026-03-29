@@ -14,9 +14,9 @@ aria-libc provides Aria-native wrappers around C standard library (libc) functio
 
 ## Status
 
-**v0.1.2** — Extended POSIX module (signals, fork/exec, pipe, mmap). 441 tests passing across 16 test suites (8 modules × 2 link modes).
+**v0.1.3** — Filesystem extras + POSIX regex. 571 tests passing across 20 test suites (10 modules × 2 link modes).
 
-All 8 modules fully implemented:
+All 10 modules fully implemented:
 - Dynamic linking via glibc (default)
 - **Static linking via musl** — zero runtime dependencies
 
@@ -51,6 +51,8 @@ aria-libc/
 | **process** | getenv, setenv, unsetenv, run (system), getpid, getppid, getuid, getgid, getcwd, chdir, errno, strerror | 25 |
 | **net** | socket, close, shutdown, bind, listen, accept, connect, send, recv, sendto, recvfrom, setsockopt, getsockopt, set_nonblocking, poll, resolve (getaddrinfo), gethostname, inet_aton/ntoa, htons/ntohs/htonl/ntohl, tcp_connect, tcp_listen | 80 |
 | **posix** | signal_trap/check/reset/ignore, raise, kill, fork, waitpid, wait_exited/status/signaled/termsig, exec_shell, spawn, spawn_bg, pipe_create/read_fd/write_fd, dup, dup2, fd_write_string/read_string/close, mmap, munmap, mprotect, msync, mmap byte/int64/string R/W | 99 |
+| **fs** | access, chmod, symlink, readlink, hardlink, truncate_file, realpath, mkdtemp, mkstemp, mkstemp_path, fnmatch, glob_open/count/path/close, constants (F_OK/R_OK/W_OK/X_OK, S_IRWXU/IRUSR/IWUSR/IXUSR/IRWXG/IRWXO, FNM_PATHNAME/PERIOD/NOESCAPE) | 73 |
+| **regex** | compile, release, is_match, exec, group_start/end/string, replace_first, replace_all, count_matches, last_error, constants (REG_EXTENDED/ICASE/NEWLINE/NOSUB) | 57 |
 
 ### Link Modes
 

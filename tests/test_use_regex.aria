@@ -1,0 +1,174 @@
+// test_use_regex.aria — Use-import test for aria-libc POSIX regex
+//
+// Compile:
+//   ariac test_use_regex.aria -o test_use_regex -L../shim -laria_libc_regex
+//
+// Run:
+//   LD_LIBRARY_PATH=../shim ./test_use_regex
+
+use "../src/aria_libc_regex.aria".*;
+
+// ══════════════════════════════════════════════════════════════════
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+    }
+    pass(NIL);
+};
+
+func:assert_gt = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual > threshold) {
+        drop(print("  PASS: " + msg));
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected > " + string_from_int(threshold)));
+        drop(print("    actual:    " + string_from_int(actual)));
+    }
+    pass(NIL);
+};
+
+func:assert_gte = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual >= threshold) {
+        drop(print("  PASS: " + msg));
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected >= " + string_from_int(threshold)));
+        drop(print("    actual:     " + string_from_int(actual)));
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+    }
+    pass(NIL);
+};
+
+func:assert_str_ne = NIL(string:actual, string:unexpected, string:msg) {
+    if (actual != unexpected) {
+        drop(print("  PASS: " + msg));
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    should not be: " + unexpected));
+    }
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════
+// Test functions — all pub func calls wrapped with raw()
+// ══════════════════════════════════════════════════════════════════
+
+func:test_use_constants = NIL() {
+    drop(println("=== Use Constants ==="));
+    int64:ext = raw(libc_regex_REG_EXTENDED());
+    int64:ic  = raw(libc_regex_REG_ICASE());
+    drop(assert_gt(ext, 0i64, "REG_EXTENDED via use"));
+    drop(assert_gt(ic, 0i64, "REG_ICASE via use"));
+    pass(NIL);
+};
+
+func:test_use_compile_match = NIL() {
+    drop(println("=== Use Compile + Match ==="));
+
+    int64:flags = raw(libc_regex_REG_EXTENDED());
+
+    int64:h = raw(libc_regex_compile("^[a-z]+$", flags));
+    drop(assert_gte(h, 0i64, "compile via use"));
+
+    int64:m1 = raw(libc_regex_is_match(h, "hello"));
+    drop(assert_eq(m1, 1i64, "hello matches via use"));
+
+    int64:m2 = raw(libc_regex_is_match(h, "123"));
+    drop(assert_eq(m2, 0i64, "123 no match via use"));
+
+    drop(raw(libc_regex_release(h)));
+    pass(NIL);
+};
+
+func:test_use_groups = NIL() {
+    drop(println("=== Use Groups ==="));
+
+    int64:flags = raw(libc_regex_REG_EXTENDED());
+    int64:h = raw(libc_regex_compile("(foo)(bar)", flags));
+    drop(assert_gte(h, 0i64, "compile foobar"));
+
+    string:text = "prefix foobar suffix";
+    int64:n = raw(libc_regex_exec(h, text));
+    drop(assert_eq(n, 3i64, "exec returns 3 groups"));
+
+    string:g0 = raw(libc_regex_group_string(h, 0i64, text));
+    drop(assert_str_eq(g0, "foobar", "group 0 = foobar via use"));
+
+    string:g1 = raw(libc_regex_group_string(h, 1i64, text));
+    drop(assert_str_eq(g1, "foo", "group 1 = foo via use"));
+
+    string:g2 = raw(libc_regex_group_string(h, 2i64, text));
+    drop(assert_str_eq(g2, "bar", "group 2 = bar via use"));
+
+    drop(raw(libc_regex_release(h)));
+    pass(NIL);
+};
+
+func:test_use_replace = NIL() {
+    drop(println("=== Use Replace ==="));
+
+    int64:flags = raw(libc_regex_REG_EXTENDED());
+    int64:h = raw(libc_regex_compile("[0-9]+", flags));
+    drop(assert_gte(h, 0i64, "compile digits"));
+
+    string:r1 = raw(libc_regex_replace_first(h, "a1b2c3", "X"));
+    drop(assert_str_eq(r1, "aXb2c3", "replace_first via use"));
+
+    string:r2 = raw(libc_regex_replace_all(h, "a1b2c3", "X"));
+    drop(assert_str_eq(r2, "aXbXcX", "replace_all via use"));
+
+    drop(raw(libc_regex_release(h)));
+    pass(NIL);
+};
+
+func:test_use_count = NIL() {
+    drop(println("=== Use Count ==="));
+
+    int64:flags = raw(libc_regex_REG_EXTENDED());
+    int64:h = raw(libc_regex_compile("[aeiou]", flags));
+    drop(assert_gte(h, 0i64, "compile vowels"));
+
+    int64:c = raw(libc_regex_count_matches(h, "hello world"));
+    drop(assert_eq(c, 3i64, "3 vowels via use"));
+
+    drop(raw(libc_regex_release(h)));
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════
+// Main
+// ══════════════════════════════════════════════════════════════════
+
+func:failsafe = int32(tbb32:err) {
+    drop(println("Failsafe triggered"));
+    exit(1i32);
+};
+
+func:main = int32() {
+    drop(println("aria-libc Regex Use-Import Tests"));
+    drop(println("================================"));
+
+    drop(test_use_constants());
+    drop(test_use_compile_match());
+    drop(test_use_groups());
+    drop(test_use_replace());
+    drop(test_use_count());
+
+    drop(println("================================"));
+    exit(0i32);
+};

@@ -1,0 +1,114 @@
+// aria_libc_regex.aria — POSIX regex wrappers for aria-libc
+//
+// Handle-based pool of compiled regex patterns.
+// Provides: compile, release, is_match, exec (with group capture),
+//           group_start/end/string, replace_first/all, count_matches.
+
+extern "aria_libc_regex" {
+    // Error state
+    func:aria_libc_regex_errno = int64();
+    func:aria_libc_regex_strerror = string(int64:e);
+    func:aria_libc_regex_last_error = string();
+
+    // Constants
+    func:aria_libc_regex_REG_EXTENDED = int64();
+    func:aria_libc_regex_REG_ICASE = int64();
+    func:aria_libc_regex_REG_NEWLINE = int64();
+    func:aria_libc_regex_REG_NOSUB = int64();
+
+    // Compile / Release
+    func:aria_libc_regex_compile = int64(string:pattern, int64:flags);
+    func:aria_libc_regex_release = int64(int64:handle);
+
+    // Matching
+    func:aria_libc_regex_is_match = int64(int64:handle, string:text);
+    func:aria_libc_regex_exec = int64(int64:handle, string:text);
+    func:aria_libc_regex_group_start = int64(int64:handle, int64:group);
+    func:aria_libc_regex_group_end = int64(int64:handle, int64:group);
+    func:aria_libc_regex_group_string = string(int64:handle, int64:group, string:text);
+
+    // Replace
+    func:aria_libc_regex_replace_first = string(int64:handle, string:text, string:replacement);
+    func:aria_libc_regex_replace_all = string(int64:handle, string:text, string:replacement);
+
+    // Count
+    func:aria_libc_regex_count_matches = int64(int64:handle, string:text);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Public wrappers
+// ══════════════════════════════════════════════════════════════════
+
+// ── Error state ──
+
+pub func:libc_regex_errno = int64() {
+    pass(aria_libc_regex_errno());
+};
+
+pub func:libc_regex_strerror = string(int64:e) {
+    string:result = aria_libc_regex_strerror(e);
+    pass(result);
+};
+
+pub func:libc_regex_last_error = string() {
+    string:result = aria_libc_regex_last_error();
+    pass(result);
+};
+
+// ── Constants ──
+
+pub func:libc_regex_REG_EXTENDED = int64() { pass(aria_libc_regex_REG_EXTENDED()); };
+pub func:libc_regex_REG_ICASE = int64()    { pass(aria_libc_regex_REG_ICASE()); };
+pub func:libc_regex_REG_NEWLINE = int64()  { pass(aria_libc_regex_REG_NEWLINE()); };
+pub func:libc_regex_REG_NOSUB = int64()    { pass(aria_libc_regex_REG_NOSUB()); };
+
+// ── Compile / Release ──
+
+pub func:libc_regex_compile = int64(string:pattern, int64:flags) {
+    pass(aria_libc_regex_compile(pattern, flags));
+};
+
+pub func:libc_regex_release = int64(int64:handle) {
+    pass(aria_libc_regex_release(handle));
+};
+
+// ── Matching ──
+
+pub func:libc_regex_is_match = int64(int64:handle, string:text) {
+    pass(aria_libc_regex_is_match(handle, text));
+};
+
+pub func:libc_regex_exec = int64(int64:handle, string:text) {
+    pass(aria_libc_regex_exec(handle, text));
+};
+
+pub func:libc_regex_group_start = int64(int64:handle, int64:group) {
+    pass(aria_libc_regex_group_start(handle, group));
+};
+
+pub func:libc_regex_group_end = int64(int64:handle, int64:group) {
+    pass(aria_libc_regex_group_end(handle, group));
+};
+
+pub func:libc_regex_group_string = string(int64:handle, int64:group, string:text) {
+    string:result = aria_libc_regex_group_string(handle, group, text);
+    pass(result);
+};
+
+// ── Replace ──
+
+pub func:libc_regex_replace_first = string(int64:handle, string:text, string:replacement) {
+    string:result = aria_libc_regex_replace_first(handle, text, replacement);
+    pass(result);
+};
+
+pub func:libc_regex_replace_all = string(int64:handle, string:text, string:replacement) {
+    string:result = aria_libc_regex_replace_all(handle, text, replacement);
+    pass(result);
+};
+
+// ── Count ──
+
+pub func:libc_regex_count_matches = int64(int64:handle, string:text) {
+    pass(aria_libc_regex_count_matches(handle, text));
+};

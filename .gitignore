@@ -24,6 +24,10 @@ tests/test_libc_net
 tests/test_use_net
 tests/test_libc_posix
 tests/test_use_posix
+tests/test_libc_fs
+tests/test_use_fs
+tests/test_libc_regex
+tests/test_use_regex
 
 # musl source (large, download separately)
 musl-1.2.6/

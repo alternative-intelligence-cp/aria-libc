@@ -34,6 +34,10 @@ declare -a ALL_TESTS=(
     "use_net:tests/test_use_net.aria:-laria_libc_net"
     "posix:tests/test_libc_posix.aria:-laria_libc_posix"
     "use_posix:tests/test_use_posix.aria:-laria_libc_posix"
+    "fs:tests/test_libc_fs.aria:-laria_libc_fs -laria_libc_io"
+    "use_fs:tests/test_use_fs.aria:-laria_libc_fs -laria_libc_io"
+    "regex:tests/test_libc_regex.aria:-laria_libc_regex"
+    "use_regex:tests/test_use_regex.aria:-laria_libc_regex"
 )
 
 # ── Filter tests if args provided ───────────────────────────────────

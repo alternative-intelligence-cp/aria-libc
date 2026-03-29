@@ -92,6 +92,26 @@ OBJ_FILE="$TMPDIR/output.o"
 [[ "$VERBOSE" == "1" ]] && echo "[2/3] assembly → object"
 clang -c "$ASM_FILE" -o "$OBJ_FILE"
 
+# Step 2b: Rebuild shim C files with musl headers for struct layout compatibility
+MUSL_SHIM_DIR="$TMPDIR/musl-shims"
+mkdir -p "$MUSL_SHIM_DIR"
+CLANG_BUILTINS="$(clang -print-resource-dir)/include"
+
+for flag in "${USER_LINK_FLAGS[@]}"; do
+    if [[ "$flag" == -l* ]]; then
+        libname="${flag#-l}"
+        src="$SHIM_DIR/${libname}.c"
+        if [[ -f "$src" ]]; then
+            [[ "$VERBOSE" == "1" ]] && echo "  rebuilding $libname with musl headers"
+            clang -O2 -Wall -Wextra -fPIC -c -nostdinc \
+                -isystem "$MUSL_DIR/include" \
+                -isystem "$CLANG_BUILTINS" \
+                "$src" -o "$MUSL_SHIM_DIR/${libname}.o"
+            ar rcs "$MUSL_SHIM_DIR/lib${libname}.a" "$MUSL_SHIM_DIR/${libname}.o"
+        fi
+    fi
+done
+
 # Step 3: Static link with musl
 [[ "$VERBOSE" == "1" ]] && echo "[3/3] static link (musl + aria runtime + shim)"
 clang++ -static -nostdlib -nostartfiles \
@@ -99,6 +119,7 @@ clang++ -static -nostdlib -nostartfiles \
     "$MUSL_DIR/lib/crti.o" \
     "$OBJ_FILE" \
     "$ARIA_RT" \
+    -L"$MUSL_SHIM_DIR" \
     -L"$SHIM_DIR" \
     "${USER_LINK_FLAGS[@]}" \
     -lglibc_compat \

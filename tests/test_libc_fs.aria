@@ -1,0 +1,438 @@
+// test_libc_fs.aria — Tests for aria-libc filesystem extras
+//
+// Compile:
+//   ariac test_libc_fs.aria -o test_libc_fs -L../shim -laria_libc_fs -laria_libc_io
+//
+// Run:
+//   LD_LIBRARY_PATH=../shim ./test_libc_fs
+
+extern "aria_libc_fs" {
+    func:aria_libc_fs_errno = int64();
+    func:aria_libc_fs_strerror = string(int64:errnum);
+
+    func:aria_libc_fs_F_OK = int64();
+    func:aria_libc_fs_R_OK = int64();
+    func:aria_libc_fs_W_OK = int64();
+    func:aria_libc_fs_X_OK = int64();
+
+    func:aria_libc_fs_FNM_PATHNAME = int64();
+    func:aria_libc_fs_FNM_PERIOD = int64();
+    func:aria_libc_fs_FNM_NOESCAPE = int64();
+
+    func:aria_libc_fs_S_IRWXU = int64();
+    func:aria_libc_fs_S_IRUSR = int64();
+    func:aria_libc_fs_S_IWUSR = int64();
+    func:aria_libc_fs_S_IXUSR = int64();
+    func:aria_libc_fs_S_IRWXG = int64();
+    func:aria_libc_fs_S_IRWXO = int64();
+
+    func:aria_libc_fs_access = int64(string:path, int64:mode);
+    func:aria_libc_fs_chmod = int64(string:path, int64:mode);
+    func:aria_libc_fs_symlink = int64(string:target, string:linkpath);
+    func:aria_libc_fs_readlink = string(string:path);
+    func:aria_libc_fs_hardlink = int64(string:target, string:linkpath);
+    func:aria_libc_fs_truncate_file = int64(string:path, int64:length);
+    func:aria_libc_fs_realpath = string(string:path);
+
+    func:aria_libc_fs_mkdtemp = string(string:tmpl);
+    func:aria_libc_fs_mkstemp = int64(string:tmpl);
+    func:aria_libc_fs_mkstemp_path = string();
+
+    func:aria_libc_fs_fnmatch = int64(string:pattern, string:str, int64:flags);
+
+    func:aria_libc_fs_glob_open = int64(string:pattern);
+    func:aria_libc_fs_glob_count = int64(int64:handle);
+    func:aria_libc_fs_glob_path = string(int64:handle, int64:index);
+    func:aria_libc_fs_glob_close = int64(int64:handle);
+}
+
+// We need some io functions for file creation in tests
+extern "aria_libc_io" {
+    func:aria_libc_io_write_file = int64(string:path, string:content);
+    func:aria_libc_io_read_file = string(string:path);
+    func:aria_libc_io_unlink = int64(string:path);
+    func:aria_libc_io_mkdir = int64(string:path, int64:mode);
+    func:aria_libc_io_rmdir = int64(string:path);
+    func:aria_libc_io_stat_exists = int64(string:path);
+    func:aria_libc_io_stat_size = int64(string:path);
+    func:aria_libc_io_close = int64(int64:fd);
+}
+
+// ══════════════════════════════════════════════════════════════════
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+    }
+    pass(NIL);
+};
+
+func:assert_gt = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual > threshold) {
+        drop(print("  PASS: " + msg));
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected > " + string_from_int(threshold)));
+        drop(print("    actual:    " + string_from_int(actual)));
+    }
+    pass(NIL);
+};
+
+func:assert_gte = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual >= threshold) {
+        drop(print("  PASS: " + msg));
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected >= " + string_from_int(threshold)));
+        drop(print("    actual:     " + string_from_int(actual)));
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+    }
+    pass(NIL);
+};
+
+func:assert_str_ne = NIL(string:actual, string:unexpected, string:msg) {
+    if (actual != unexpected) {
+        drop(print("  PASS: " + msg));
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    should not be: " + unexpected));
+    }
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════
+// Test functions
+// ══════════════════════════════════════════════════════════════════
+
+func:test_access_constants = NIL() {
+    drop(println("=== Access Constants ==="));
+    int64:f = aria_libc_fs_F_OK();
+    int64:r = aria_libc_fs_R_OK();
+    int64:w = aria_libc_fs_W_OK();
+    int64:x = aria_libc_fs_X_OK();
+    drop(assert_gte(f, 0i64, "F_OK >= 0"));
+    drop(assert_gt(r, 0i64, "R_OK > 0"));
+    drop(assert_gt(w, 0i64, "W_OK > 0"));
+    drop(assert_gt(x, 0i64, "X_OK > 0"));
+    pass(NIL);
+};
+
+func:test_permission_constants = NIL() {
+    drop(println("=== Permission Constants ==="));
+    int64:irwxu = aria_libc_fs_S_IRWXU();
+    int64:irusr = aria_libc_fs_S_IRUSR();
+    int64:iwusr = aria_libc_fs_S_IWUSR();
+    int64:ixusr = aria_libc_fs_S_IXUSR();
+    int64:irwxg = aria_libc_fs_S_IRWXG();
+    int64:irwxo = aria_libc_fs_S_IRWXO();
+    drop(assert_gt(irwxu, 0i64, "S_IRWXU > 0"));
+    drop(assert_gt(irusr, 0i64, "S_IRUSR > 0"));
+    drop(assert_gt(iwusr, 0i64, "S_IWUSR > 0"));
+    drop(assert_gt(ixusr, 0i64, "S_IXUSR > 0"));
+    drop(assert_gt(irwxg, 0i64, "S_IRWXG > 0"));
+    drop(assert_gt(irwxo, 0i64, "S_IRWXO > 0"));
+    pass(NIL);
+};
+
+func:test_fnmatch_constants = NIL() {
+    drop(println("=== fnmatch Constants ==="));
+    int64:pn = aria_libc_fs_FNM_PATHNAME();
+    int64:pd = aria_libc_fs_FNM_PERIOD();
+    int64:ne = aria_libc_fs_FNM_NOESCAPE();
+    drop(assert_gt(pn, 0i64, "FNM_PATHNAME > 0"));
+    drop(assert_gt(pd, 0i64, "FNM_PERIOD > 0"));
+    drop(assert_gt(ne, 0i64, "FNM_NOESCAPE > 0"));
+    pass(NIL);
+};
+
+func:test_access = NIL() {
+    drop(println("=== Access ==="));
+
+    // Create a temp file to test
+    int64:wrc = aria_libc_io_write_file("/tmp/aria_fs_test_access.txt", "hello");
+    drop(assert_gte(wrc, 0i64, "create test file"));
+
+    int64:f = aria_libc_fs_F_OK();
+    int64:r = aria_libc_fs_R_OK();
+    int64:w = aria_libc_fs_W_OK();
+
+    int64:rc1 = aria_libc_fs_access("/tmp/aria_fs_test_access.txt", f);
+    drop(assert_eq(rc1, 0i64, "access F_OK returns 0"));
+
+    int64:rc2 = aria_libc_fs_access("/tmp/aria_fs_test_access.txt", r);
+    drop(assert_eq(rc2, 0i64, "access R_OK returns 0"));
+
+    int64:rc3 = aria_libc_fs_access("/tmp/aria_fs_test_access.txt", w);
+    drop(assert_eq(rc3, 0i64, "access W_OK returns 0"));
+
+    // Non-existent file
+    int64:rc4 = aria_libc_fs_access("/tmp/aria_fs_nonexistent_xyz.txt", f);
+    drop(assert_eq(rc4, -1i64, "access non-existent returns -1"));
+
+    drop(aria_libc_io_unlink("/tmp/aria_fs_test_access.txt"));
+    pass(NIL);
+};
+
+func:test_chmod = NIL() {
+    drop(println("=== Chmod ==="));
+
+    int64:wrc = aria_libc_io_write_file("/tmp/aria_fs_test_chmod.txt", "data");
+    drop(assert_gte(wrc, 0i64, "create test file"));
+
+    // chmod to read-only for owner
+    int64:irusr = aria_libc_fs_S_IRUSR();
+    int64:rc = aria_libc_fs_chmod("/tmp/aria_fs_test_chmod.txt", irusr);
+    drop(assert_eq(rc, 0i64, "chmod to 0400 returns 0"));
+
+    // Should NOT be writable now
+    int64:w = aria_libc_fs_W_OK();
+    int64:rc2 = aria_libc_fs_access("/tmp/aria_fs_test_chmod.txt", w);
+    drop(assert_eq(rc2, -1i64, "access W_OK after chmod 0400 = -1"));
+
+    // Restore perms and clean up
+    int64:irwxu = aria_libc_fs_S_IRWXU();
+    drop(aria_libc_fs_chmod("/tmp/aria_fs_test_chmod.txt", irwxu));
+    drop(aria_libc_io_unlink("/tmp/aria_fs_test_chmod.txt"));
+    pass(NIL);
+};
+
+func:test_symlink = NIL() {
+    drop(println("=== Symlink ==="));
+
+    // Create target file
+    int64:wrc = aria_libc_io_write_file("/tmp/aria_fs_test_symtarget.txt", "symlink data");
+    drop(assert_gte(wrc, 0i64, "create target file"));
+
+    // Create symlink
+    int64:rc = aria_libc_fs_symlink("/tmp/aria_fs_test_symtarget.txt", "/tmp/aria_fs_test_symlink.txt");
+    drop(assert_eq(rc, 0i64, "symlink returns 0"));
+
+    // Check exists via access
+    int64:f = aria_libc_fs_F_OK();
+    int64:rc2 = aria_libc_fs_access("/tmp/aria_fs_test_symlink.txt", f);
+    drop(assert_eq(rc2, 0i64, "symlink accessible"));
+
+    // Readlink
+    string:target = aria_libc_fs_readlink("/tmp/aria_fs_test_symlink.txt");
+    drop(assert_str_eq(target, "/tmp/aria_fs_test_symtarget.txt", "readlink returns target"));
+
+    // Read through symlink
+    string:content = aria_libc_io_read_file("/tmp/aria_fs_test_symlink.txt");
+    drop(assert_str_eq(content, "symlink data", "read through symlink"));
+
+    // Clean up
+    drop(aria_libc_io_unlink("/tmp/aria_fs_test_symlink.txt"));
+    drop(aria_libc_io_unlink("/tmp/aria_fs_test_symtarget.txt"));
+    pass(NIL);
+};
+
+func:test_hardlink = NIL() {
+    drop(println("=== Hard Link ==="));
+
+    int64:wrc = aria_libc_io_write_file("/tmp/aria_fs_test_hlsrc.txt", "hardlink data");
+    drop(assert_gte(wrc, 0i64, "create source file"));
+
+    int64:rc = aria_libc_fs_hardlink("/tmp/aria_fs_test_hlsrc.txt", "/tmp/aria_fs_test_hldst.txt");
+    drop(assert_eq(rc, 0i64, "hardlink returns 0"));
+
+    // Read through hard link
+    string:content = aria_libc_io_read_file("/tmp/aria_fs_test_hldst.txt");
+    drop(assert_str_eq(content, "hardlink data", "read through hardlink"));
+
+    // Clean up
+    drop(aria_libc_io_unlink("/tmp/aria_fs_test_hlsrc.txt"));
+    drop(aria_libc_io_unlink("/tmp/aria_fs_test_hldst.txt"));
+    pass(NIL);
+};
+
+func:test_truncate = NIL() {
+    drop(println("=== Truncate ==="));
+
+    int64:wrc = aria_libc_io_write_file("/tmp/aria_fs_test_trunc.txt", "hello world!!");
+    drop(assert_gte(wrc, 0i64, "create test file"));
+
+    int64:sz1 = aria_libc_io_stat_size("/tmp/aria_fs_test_trunc.txt");
+    drop(assert_eq(sz1, 13i64, "original size = 13"));
+
+    int64:rc = aria_libc_fs_truncate_file("/tmp/aria_fs_test_trunc.txt", 5i64);
+    drop(assert_eq(rc, 0i64, "truncate returns 0"));
+
+    int64:sz2 = aria_libc_io_stat_size("/tmp/aria_fs_test_trunc.txt");
+    drop(assert_eq(sz2, 5i64, "truncated size = 5"));
+
+    string:content = aria_libc_io_read_file("/tmp/aria_fs_test_trunc.txt");
+    drop(assert_str_eq(content, "hello", "truncated content = hello"));
+
+    drop(aria_libc_io_unlink("/tmp/aria_fs_test_trunc.txt"));
+    pass(NIL);
+};
+
+func:test_realpath = NIL() {
+    drop(println("=== Realpath ==="));
+
+    // /tmp should resolve to itself (or /private/tmp on macOS, but we're on Linux)
+    string:resolved = aria_libc_fs_realpath("/tmp");
+    drop(assert_str_ne(resolved, "", "realpath /tmp not empty"));
+
+    // Non-existent path
+    string:bad = aria_libc_fs_realpath("/tmp/aria_fs_nonexistent_path_xyz");
+    drop(assert_str_eq(bad, "", "realpath non-existent = empty"));
+    pass(NIL);
+};
+
+func:test_mkdtemp = NIL() {
+    drop(println("=== mkdtemp ==="));
+
+    string:dir = aria_libc_fs_mkdtemp("/tmp/aria_fs_test_XXXXXX");
+    drop(assert_str_ne(dir, "", "mkdtemp returns non-empty"));
+
+    // Check directory exists
+    int64:f = aria_libc_fs_F_OK();
+    int64:rc = aria_libc_fs_access(dir, f);
+    drop(assert_eq(rc, 0i64, "mkdtemp dir accessible"));
+
+    // Clean up
+    drop(aria_libc_io_rmdir(dir));
+    pass(NIL);
+};
+
+func:test_mkstemp = NIL() {
+    drop(println("=== mkstemp ==="));
+
+    int64:fd = aria_libc_fs_mkstemp("/tmp/aria_fs_test_XXXXXX");
+    drop(assert_gte(fd, 0i64, "mkstemp returns fd >= 0"));
+
+    string:path = aria_libc_fs_mkstemp_path();
+    drop(assert_str_ne(path, "", "mkstemp_path returns non-empty"));
+
+    // Close fd and check file exists
+    drop(aria_libc_io_close(fd));
+    int64:f = aria_libc_fs_F_OK();
+    int64:rc = aria_libc_fs_access(path, f);
+    drop(assert_eq(rc, 0i64, "mkstemp file accessible"));
+
+    // Clean up
+    drop(aria_libc_io_unlink(path));
+    pass(NIL);
+};
+
+func:test_fnmatch = NIL() {
+    drop(println("=== fnmatch ==="));
+
+    // Match
+    int64:rc1 = aria_libc_fs_fnmatch("*.txt", "hello.txt", 0i64);
+    drop(assert_eq(rc1, 0i64, "*.txt matches hello.txt"));
+
+    int64:rc2 = aria_libc_fs_fnmatch("hello.*", "hello.world", 0i64);
+    drop(assert_eq(rc2, 0i64, "hello.* matches hello.world"));
+
+    // No match
+    int64:rc3 = aria_libc_fs_fnmatch("*.txt", "hello.md", 0i64);
+    drop(assert_gt(rc3, 0i64, "*.txt does not match hello.md"));
+
+    // PATHNAME flag
+    int64:pn = aria_libc_fs_FNM_PATHNAME();
+    int64:rc4 = aria_libc_fs_fnmatch("*.txt", "dir/hello.txt", pn);
+    drop(assert_gt(rc4, 0i64, "*.txt with PATHNAME does not match dir/hello.txt"));
+
+    int64:rc5 = aria_libc_fs_fnmatch("*.txt", "dir/hello.txt", 0i64);
+    drop(assert_eq(rc5, 0i64, "*.txt without PATHNAME matches dir/hello.txt"));
+
+    pass(NIL);
+};
+
+func:test_glob = NIL() {
+    drop(println("=== Glob ==="));
+
+    // Create test files in /tmp
+    drop(aria_libc_io_write_file("/tmp/aria_fs_glob_a.txt", "a"));
+    drop(aria_libc_io_write_file("/tmp/aria_fs_glob_b.txt", "b"));
+    drop(aria_libc_io_write_file("/tmp/aria_fs_glob_c.md", "c"));
+
+    int64:handle = aria_libc_fs_glob_open("/tmp/aria_fs_glob_*.txt");
+    drop(assert_gte(handle, 0i64, "glob_open returns valid handle"));
+
+    int64:count = aria_libc_fs_glob_count(handle);
+    drop(assert_gte(count, 2i64, "glob matches >= 2 .txt files"));
+
+    // Read first path
+    string:p0 = aria_libc_fs_glob_path(handle, 0i64);
+    drop(assert_str_ne(p0, "", "glob_path(0) not empty"));
+
+    int64:crc = aria_libc_fs_glob_close(handle);
+    drop(assert_eq(crc, 0i64, "glob_close returns 0"));
+
+    // Non-matching glob
+    int64:h2 = aria_libc_fs_glob_open("/tmp/aria_fs_glob_*.xyz");
+    drop(assert_gte(h2, 0i64, "glob_open no-match returns valid handle"));
+    int64:c2 = aria_libc_fs_glob_count(h2);
+    drop(assert_eq(c2, 0i64, "glob count for no-match = 0"));
+    drop(aria_libc_fs_glob_close(h2));
+
+    // Clean up
+    drop(aria_libc_io_unlink("/tmp/aria_fs_glob_a.txt"));
+    drop(aria_libc_io_unlink("/tmp/aria_fs_glob_b.txt"));
+    drop(aria_libc_io_unlink("/tmp/aria_fs_glob_c.md"));
+    pass(NIL);
+};
+
+func:test_error = NIL() {
+    drop(println("=== Error Reporting ==="));
+
+    // readlink on a non-symlink
+    string:bad = aria_libc_fs_readlink("/tmp/aria_fs_nonexistent_xyz");
+    drop(assert_str_eq(bad, "", "readlink bad path = empty"));
+
+    int64:e = aria_libc_fs_errno();
+    drop(assert_gt(e, 0i64, "errno > 0 after bad readlink"));
+
+    string:msg = aria_libc_fs_strerror(e);
+    drop(assert_str_ne(msg, "", "strerror returns non-empty"));
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════
+// Main
+// ══════════════════════════════════════════════════════════════════
+
+func:failsafe = int32(tbb32:err) {
+    drop(println("Failsafe triggered"));
+    exit(1i32);
+};
+
+func:main = int32() {
+    drop(println("aria-libc Filesystem Extras Tests"));
+    drop(println("================================="));
+
+    drop(test_access_constants());
+    drop(test_permission_constants());
+    drop(test_fnmatch_constants());
+    drop(test_access());
+    drop(test_chmod());
+    drop(test_symlink());
+    drop(test_hardlink());
+    drop(test_truncate());
+    drop(test_realpath());
+    drop(test_mkdtemp());
+    drop(test_mkstemp());
+    drop(test_fnmatch());
+    drop(test_glob());
+    drop(test_error());
+
+    drop(println("================================="));
+    exit(0i32);
+};

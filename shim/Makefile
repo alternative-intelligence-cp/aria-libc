@@ -3,7 +3,7 @@ CFLAGS  := -O2 -Wall -Wextra -fPIC
 MUSL_DIR := ../build/musl
 
 # ── Modules ──────────────────────────────────────────────────────────
-MODULES := aria_libc_io aria_libc_mem aria_libc_string aria_libc_math aria_libc_time aria_libc_process aria_libc_net aria_libc_posix
+MODULES := aria_libc_io aria_libc_mem aria_libc_string aria_libc_math aria_libc_time aria_libc_process aria_libc_net aria_libc_posix aria_libc_fs aria_libc_regex
 
 SHARED  := $(patsubst %,lib%.so,$(MODULES))
 STATIC  := $(patsubst %,lib%.a,$(MODULES))
