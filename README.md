@@ -1,6 +1,8 @@
 # aria-libc
 
-Standard C library wrappers for the [Aria programming language](https://github.com/alternative-intelligence-cp/aria).
+Standard C library wrappers for the [Aria programming language](https://github.com/alternative-intelligence-cp/aria) — libc without the boilerplate.
+
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 ## What is aria-libc?
 
@@ -8,17 +10,17 @@ aria-libc provides Aria-native wrappers around C standard library (libc) functio
 
 ## Why?
 
-1. **No more extern boilerplate** — Ready-made wrappers for I/O, memory, strings, math, time, process, networking, and POSIX functions
-2. **Static builds** — Link against musl instead of glibc for zero-dependency, fully portable binaries
+1. **No more extern boilerplate** — Ready-made wrappers for I/O, memory, strings, math, time, process, networking, POSIX, filesystem, and regex functions
+2. **Static builds** — Use `ariac --static` or the musl pipeline for zero-dependency, fully portable binaries
 3. **One canonical source** — Tested, documented libc wrappers the whole ecosystem can depend on
 
 ## Status
 
-**v0.1.3** — Filesystem extras + POSIX regex. 571 tests passing across 20 test suites (10 modules × 2 link modes).
+**v0.2.0** — 571 tests passing across 20 test suites (10 modules × 2 link modes).
 
 All 10 modules fully implemented:
 - Dynamic linking via glibc (default)
-- **Static linking via musl** — zero runtime dependencies
+- **Static linking** via `ariac --static` or musl pipeline — zero runtime dependencies
 
 ## Architecture
 
@@ -83,7 +85,19 @@ ariac myfile.aria -o myfile -L/path/to/aria-libc/shim -laria_libc_io
 LD_LIBRARY_PATH=/path/to/aria-libc/shim ./myfile
 ```
 
-### Static Build (musl)
+### Static Build (simple)
+
+As of ariac v0.2.16+, use the `--static` flag for system static linking:
+
+```bash
+ariac --static myfile.aria -o myfile_static -L/path/to/aria-libc/shim -laria_libc_io
+file myfile_static    # → "statically linked"
+./myfile_static       # Just works
+```
+
+### Static Build (musl — hermetic)
+
+For zero-dependency, hermetic binaries that work on any Linux (no glibc needed):
 
 ```bash
 # Using the build script:
@@ -92,7 +106,7 @@ LD_LIBRARY_PATH=/path/to/aria-libc/shim ./myfile
 # The binary has zero dependencies:
 file myfile_static    # → "statically linked"
 ldd myfile_static     # → "not a dynamic executable"
-./myfile_static       # Just works, anywhere
+./myfile_static       # Works on any x86-64 Linux
 ```
 
 For programs using multiple modules:
@@ -205,7 +219,33 @@ compiled on glibc systems. This lets us use the system's libstdc++ with musl's l
 
 ## Long-term Vision
 
-The near-term goal is wrapping existing libc (via musl for static builds). The long-term goal is a standalone libc implementation written in Aria that doesn't depend on musl or glibc at all.
+**Current (v0.2.x):** Wrapping existing C libc functions via musl/glibc through a C shim layer. Every libc function Aria programs commonly need is available without writing extern blocks.
+
+**Future (standalone):** A libc implementation written entirely in Aria — no musl, no glibc dependency at all. Aria programs would link against a pure-Aria standard library that provides POSIX-compatible system call wrappers, memory management, string operations, and I/O directly. This would make Aria a fully self-hosting systems language.
+
+## Installation
+
+### From source (recommended)
+
+```bash
+git clone https://github.com/alternative-intelligence-cp/aria-libc
+cd aria-libc
+
+# Build musl (one-time, for hermetic static builds)
+cd musl-1.2.6
+./configure --prefix=$(pwd)/../build/musl --disable-shared
+make -j$(nproc) && make install
+cd ..
+
+# Build all shims
+cd shim && make && cd ..
+```
+
+### From aria package registry
+
+```bash
+aria-pkg install aria-libc
+```
 
 ## License
 
@@ -213,6 +253,12 @@ Apache License 2.0 — see [LICENSE](LICENSE)
 
 ## Part of the Aria Ecosystem
 
-- [Aria Compiler](https://github.com/alternative-intelligence-cp/aria)
-- [Aria Packages](https://github.com/alternative-intelligence-cp/aria-packages)
-- [Aria Documentation](https://github.com/alternative-intelligence-cp/aria-docs)
+| Project | Description |
+|---------|-------------|
+| [Aria Compiler](https://github.com/alternative-intelligence-cp/aria) | The Aria programming language compiler (ariac) |
+| [aria-libc](https://github.com/alternative-intelligence-cp/aria-libc) | C standard library wrappers (this repo) |
+| [Aria Packages](https://github.com/alternative-intelligence-cp/aria-packages) | Package registry — 80+ packages |
+| [Aria Documentation](https://github.com/alternative-intelligence-cp/aria-docs) | Language documentation and tutorials |
+| [aria-make](https://github.com/alternative-intelligence-cp/aria-make) | Build system for Aria projects |
+| [aria-tools](https://github.com/alternative-intelligence-cp/aria-tools) | aria-safety, aria-mcp, developer tools |
+| [AriaX](https://github.com/alternative-intelligence-cp/ariax) | AriaX Linux distribution with Aria integration |
