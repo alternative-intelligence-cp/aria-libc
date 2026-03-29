@@ -1,0 +1,124 @@
+// test_use_process.aria — Test use-import of aria_libc_process module
+//
+// Compile:
+//   ariac test_use_process.aria -o test_use_process -L../shim -laria_libc_process
+//
+// Run:
+//   LD_LIBRARY_PATH=../shim ./test_use_process
+
+use "../src/aria_libc_process.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_str_neq = NIL(string:actual, string:unexpected, string:msg) {
+    if (actual != unexpected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    should not be: " + unexpected));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    drop(print("FAILSAFE triggered"));
+    exit(1);
+};
+
+func:main = int32() {
+    drop(print("=== aria-libc Process use-import Tests ==="));
+    drop(print(""));
+
+    // Test getenv
+    string:home = raw(libc_getenv("HOME"));
+    drop(assert_str_neq(home, "", "libc_getenv(HOME) non-empty"));
+
+    // Test getenv_exists
+    int64:exists = raw(libc_getenv_exists("HOME"));
+    drop(assert_eq(exists, 1i64, "libc_getenv_exists(HOME) = 1"));
+
+    // Test setenv + getenv
+    int64:sv = raw(libc_setenv("ARIA_USE_TEST_XYZ", "abc123"));
+    drop(assert_eq(sv, 0i64, "libc_setenv returns 0"));
+
+    string:gv = raw(libc_getenv("ARIA_USE_TEST_XYZ"));
+    drop(assert_str_eq(gv, "abc123", "libc_getenv after setenv"));
+
+    // Test unsetenv
+    int64:uv = raw(libc_unsetenv("ARIA_USE_TEST_XYZ"));
+    drop(assert_eq(uv, 0i64, "libc_unsetenv returns 0"));
+
+    // Test run
+    int64:rv = raw(libc_run("true"));
+    drop(assert_eq(rv, 0i64, "libc_run(true) = 0"));
+
+    // Test getpid
+    int64:pid = raw(libc_getpid());
+    int64:pid_gt = 0i64;
+    if (pid > 0i64) {
+        pid_gt = 1i64;
+    }
+    drop(assert_eq(pid_gt, 1i64, "libc_getpid() > 0"));
+
+    // Test getuid
+    int64:uid = raw(libc_getuid());
+    int64:neg1 = 0i64 - 1i64;
+    int64:uid_ge = 0i64;
+    if (uid > neg1) {
+        uid_ge = 1i64;
+    }
+    drop(assert_eq(uid_ge, 1i64, "libc_getuid() >= 0"));
+
+    // Test getcwd
+    string:cwd = raw(libc_getcwd());
+    drop(assert_str_neq(cwd, "", "libc_getcwd() non-empty"));
+
+    // Test errno
+    int64:err = raw(libc_errno());
+    int64:err_ge = 0i64;
+    if (err > neg1) {
+        err_ge = 1i64;
+    }
+    drop(assert_eq(err_ge, 1i64, "libc_errno() >= 0"));
+
+    // ── Summary ──────────────────────────────────────────────────
+    drop(print(""));
+    drop(print("=== Results ==="));
+    drop(print("PASS: " + string_from_int(pass_count)));
+    drop(print("FAIL: " + string_from_int(fail_count)));
+
+    if (fail_count > 0i64) {
+        exit(1);
+    }
+
+    exit(0);
+};
