@@ -2,11 +2,12 @@ CC      ?= gcc
 CFLAGS  := -O2 -Wall -Wextra -fPIC
 MUSL_DIR := ../build/musl
 
-# Targets
-SHARED  := libaria_libc_io.so
-STATIC  := libaria_libc_io.a
-OBJECT  := aria_libc_io.o
-SRC     := aria_libc_io.c
+# ── Modules ──────────────────────────────────────────────────────────
+MODULES := aria_libc_io aria_libc_mem aria_libc_string
+
+SHARED  := $(patsubst %,lib%.so,$(MODULES))
+STATIC  := $(patsubst %,lib%.a,$(MODULES))
+OBJECTS := $(patsubst %,%.o,$(MODULES))
 
 .PHONY: all clean dynamic static
 
@@ -16,14 +17,15 @@ dynamic: $(SHARED)
 
 static: $(STATIC)
 
-$(SHARED): $(SRC)
+# Pattern rules for all modules
+lib%.so: %.c
 	$(CC) $(CFLAGS) -shared -o $@ $<
 
-$(OBJECT): $(SRC)
+%.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(STATIC): $(OBJECT)
+lib%.a: %.o
 	ar rcs $@ $<
 
 clean:
-	rm -f $(SHARED) $(STATIC) $(OBJECT)
+	rm -f $(SHARED) $(STATIC) $(OBJECTS)

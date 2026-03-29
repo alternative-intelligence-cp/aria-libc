@@ -1,0 +1,315 @@
+// test_libc_string.aria — Tests for aria-libc String wrappers
+//
+// Compile:
+//   ariac test_libc_string.aria -o test_libc_string -L../shim -laria_libc_string -laria_libc_mem
+//
+// Run:
+//   LD_LIBRARY_PATH=../shim ./test_libc_string
+
+extern "aria_libc_string" {
+    func:aria_libc_string_errno = int64();
+    func:aria_libc_string_strerror = string(int64:errnum);
+
+    func:aria_libc_string_length = int64(string:s);
+    func:aria_libc_string_compare = int64(string:a, string:b);
+    func:aria_libc_string_compare_n = int64(string:a, string:b, int64:n);
+
+    func:aria_libc_string_copy_to = int64(int64:dst_ptr, string:src);
+    func:aria_libc_string_copy_to_n = int64(int64:dst_ptr, string:src, int64:n);
+
+    func:aria_libc_string_find = int64(string:haystack, string:needle);
+    func:aria_libc_string_find_char = int64(string:s, int64:c);
+    func:aria_libc_string_find_last_char = int64(string:s, int64:c);
+
+    func:aria_libc_string_to_int = int64(string:s);
+    func:aria_libc_string_to_float = flt64(string:s);
+
+    func:aria_libc_string_upper = int64(int64:c);
+    func:aria_libc_string_lower = int64(int64:c);
+
+    func:aria_libc_string_is_alpha = int64(int64:c);
+    func:aria_libc_string_is_digit = int64(int64:c);
+    func:aria_libc_string_is_alnum = int64(int64:c);
+    func:aria_libc_string_is_space = int64(int64:c);
+
+    func:aria_libc_string_duplicate = int64(string:s);
+    func:aria_libc_string_from_ptr = string(int64:ptr);
+
+    func:aria_libc_string_concat_to = int64(int64:dst_ptr, int64:dst_size, string:src);
+    func:aria_libc_string_substring = string(string:s, int64:start, int64:len);
+
+    func:aria_libc_string_from_int = string(int64:val);
+    func:aria_libc_string_from_float = string(flt64:val);
+}
+
+// Need mem_alloc/release for buffer tests
+extern "aria_libc_mem" {
+    func:aria_libc_mem_alloc = int64(int64:size);
+    func:aria_libc_mem_release = int64(int64:ptr);
+    func:aria_libc_mem_set = int64(int64:dst, int64:val, int64:n);
+    func:aria_libc_mem_read_string = string(int64:ptr, int64:max_len);
+}
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_neq = NIL(int64:actual, int64:unexpected, string:msg) {
+    if (actual != unexpected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    should not be: " + string_from_int(unexpected)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    drop(print("FAILSAFE triggered"));
+    exit(1);
+};
+
+func:main = int32() {
+    drop(print("=== aria-libc String Tests ==="));
+    drop(print(""));
+
+    // ── Test 1: strlen ───────────────────────────────────────────
+    drop(print("[Test 1] strlen"));
+    int64:len1 = aria_libc_string_length("hello");
+    drop(assert_eq(len1, 5i64, "strlen(hello) = 5"));
+
+    int64:len2 = aria_libc_string_length("");
+    drop(assert_eq(len2, 0i64, "strlen('') = 0"));
+
+    int64:len3 = aria_libc_string_length("hello world 123");
+    drop(assert_eq(len3, 15i64, "strlen(hello world 123) = 15"));
+
+    // ── Test 2: strcmp ───────────────────────────────────────────
+    drop(print("[Test 2] strcmp"));
+    int64:cmp1 = aria_libc_string_compare("abc", "abc");
+    drop(assert_eq(cmp1, 0i64, "strcmp(abc, abc) = 0"));
+
+    int64:cmp2 = aria_libc_string_compare("abc", "abd");
+    // 'c' < 'd' so result should be negative
+    int64:cmp2_neg = 0i64;
+    if (cmp2 < 0i64) {
+        cmp2_neg = 1i64;
+    }
+    drop(assert_eq(cmp2_neg, 1i64, "strcmp(abc, abd) < 0"));
+
+    int64:cmp3 = aria_libc_string_compare("abd", "abc");
+    int64:cmp3_pos = 0i64;
+    if (cmp3 > 0i64) {
+        cmp3_pos = 1i64;
+    }
+    drop(assert_eq(cmp3_pos, 1i64, "strcmp(abd, abc) > 0"));
+
+    // ── Test 3: strncmp ──────────────────────────────────────────
+    drop(print("[Test 3] strncmp"));
+    int64:ncmp1 = aria_libc_string_compare_n("hello", "help", 3i64);
+    drop(assert_eq(ncmp1, 0i64, "strncmp(hello, help, 3) = 0"));
+
+    int64:ncmp2 = aria_libc_string_compare_n("hello", "help", 4i64);
+    drop(assert_neq(ncmp2, 0i64, "strncmp(hello, help, 4) != 0"));
+
+    // ── Test 4: strstr (find) ────────────────────────────────────
+    drop(print("[Test 4] strstr (find)"));
+    int64:f1 = aria_libc_string_find("hello world", "world");
+    drop(assert_eq(f1, 6i64, "strstr(hello world, world) = 6"));
+
+    int64:f2 = aria_libc_string_find("hello world", "hello");
+    drop(assert_eq(f2, 0i64, "strstr(hello world, hello) = 0"));
+
+    int64:f3 = aria_libc_string_find("hello world", "xyz");
+    drop(assert_eq(f3, 0i64 - 1i64, "strstr(hello world, xyz) = -1"));
+
+    int64:f4 = aria_libc_string_find("abcabcabc", "cab");
+    drop(assert_eq(f4, 2i64, "strstr(abcabcabc, cab) = 2"));
+
+    // ── Test 5: strchr (find_char) ───────────────────────────────
+    drop(print("[Test 5] strchr (find_char)"));
+    int64:fc1 = aria_libc_string_find_char("hello", 108i64);
+    drop(assert_eq(fc1, 2i64, "strchr(hello, l) = 2"));
+
+    int64:fc2 = aria_libc_string_find_char("hello", 111i64);
+    drop(assert_eq(fc2, 4i64, "strchr(hello, o) = 4"));
+
+    int64:fc3 = aria_libc_string_find_char("hello", 122i64);
+    drop(assert_eq(fc3, 0i64 - 1i64, "strchr(hello, z) = -1"));
+
+    // ── Test 6: strrchr (find_last_char) ─────────────────────────
+    drop(print("[Test 6] strrchr (find_last_char)"));
+    int64:fl1 = aria_libc_string_find_last_char("hello", 108i64);
+    drop(assert_eq(fl1, 3i64, "strrchr(hello, l) = 3 (last l)"));
+
+    int64:fl2 = aria_libc_string_find_last_char("a/b/c/d", 47i64);
+    drop(assert_eq(fl2, 5i64, "strrchr(a/b/c/d, /) = 5"));
+
+    // ── Test 7: strtol ───────────────────────────────────────────
+    drop(print("[Test 7] strtol"));
+    int64:n1 = aria_libc_string_to_int("42");
+    drop(assert_eq(n1, 42i64, "strtol(42) = 42"));
+
+    int64:n2 = aria_libc_string_to_int("-100");
+    drop(assert_eq(n2, 0i64 - 100i64, "strtol(-100) = -100"));
+
+    int64:n3 = aria_libc_string_to_int("0");
+    drop(assert_eq(n3, 0i64, "strtol(0) = 0"));
+
+    // ── Test 8: toupper / tolower ────────────────────────────────
+    drop(print("[Test 8] toupper / tolower"));
+    int64:u1 = aria_libc_string_upper(97i64);
+    drop(assert_eq(u1, 65i64, "toupper(a=97) = A=65"));
+
+    int64:u2 = aria_libc_string_upper(65i64);
+    drop(assert_eq(u2, 65i64, "toupper(A=65) = A=65"));
+
+    int64:l1 = aria_libc_string_lower(65i64);
+    drop(assert_eq(l1, 97i64, "tolower(A=65) = a=97"));
+
+    int64:l2 = aria_libc_string_lower(97i64);
+    drop(assert_eq(l2, 97i64, "tolower(a=97) = a=97"));
+
+    // ── Test 9: Character classification ─────────────────────────
+    drop(print("[Test 9] Character classification"));
+    int64:ia1 = aria_libc_string_is_alpha(65i64);
+    drop(assert_eq(ia1, 1i64, "is_alpha(A) = 1"));
+
+    int64:ia2 = aria_libc_string_is_alpha(48i64);
+    drop(assert_eq(ia2, 0i64, "is_alpha(0) = 0"));
+
+    int64:id1 = aria_libc_string_is_digit(48i64);
+    drop(assert_eq(id1, 1i64, "is_digit(0=48) = 1"));
+
+    int64:id2 = aria_libc_string_is_digit(65i64);
+    drop(assert_eq(id2, 0i64, "is_digit(A) = 0"));
+
+    int64:ian1 = aria_libc_string_is_alnum(65i64);
+    drop(assert_eq(ian1, 1i64, "is_alnum(A) = 1"));
+
+    int64:ian2 = aria_libc_string_is_alnum(48i64);
+    drop(assert_eq(ian2, 1i64, "is_alnum(0) = 1"));
+
+    int64:ian3 = aria_libc_string_is_alnum(32i64);
+    drop(assert_eq(ian3, 0i64, "is_alnum(space) = 0"));
+
+    int64:isp1 = aria_libc_string_is_space(32i64);
+    drop(assert_eq(isp1, 1i64, "is_space(space=32) = 1"));
+
+    int64:isp2 = aria_libc_string_is_space(65i64);
+    drop(assert_eq(isp2, 0i64, "is_space(A) = 0"));
+
+    // ── Test 10: strcpy into buffer ──────────────────────────────
+    drop(print("[Test 10] strcpy into buffer"));
+    int64:buf = aria_libc_mem_alloc(128i64);
+    int64:sret = aria_libc_mem_set(buf, 0i64, 128i64);
+    drop(assert_eq(sret, buf, "memset buffer to 0"));
+
+    int64:cplen = aria_libc_string_copy_to(buf, "Hello Copy!");
+    drop(assert_eq(cplen, 11i64, "strcpy returns 11 bytes"));
+
+    string:cpstr = aria_libc_mem_read_string(buf, 128i64);
+    drop(assert_str_eq(cpstr, "Hello Copy!", "strcpy'd string matches"));
+
+    int64:brel = aria_libc_mem_release(buf);
+    drop(assert_eq(brel, 0i64, "release copy buffer"));
+
+    // ── Test 11: strncpy into buffer ─────────────────────────────
+    drop(print("[Test 11] strncpy into buffer"));
+    int64:nbuf = aria_libc_mem_alloc(128i64);
+    int64:nsret = aria_libc_mem_set(nbuf, 0i64, 128i64);
+    drop(assert_eq(nsret, nbuf, "memset nbuf to 0"));
+
+    int64:ncplen = aria_libc_string_copy_to_n(nbuf, "Hello World!", 5i64);
+    drop(assert_eq(ncplen, 5i64, "strncpy(5) copies 5 bytes"));
+
+    // Add null terminator  
+    int64:nbrel = aria_libc_mem_release(nbuf);
+    drop(assert_eq(nbrel, 0i64, "release strncpy buffer"));
+
+    // ── Test 12: strdup + string_from_ptr ────────────────────────
+    drop(print("[Test 12] strdup + string_from_ptr"));
+    int64:dptr = aria_libc_string_duplicate("Duplicated!");
+    drop(assert_neq(dptr, 0i64, "strdup returns non-zero"));
+
+    string:dstr = aria_libc_string_from_ptr(dptr);
+    drop(assert_str_eq(dstr, "Duplicated!", "string_from_ptr matches"));
+
+    int64:drel = aria_libc_mem_release(dptr);
+    drop(assert_eq(drel, 0i64, "release duplicated string"));
+
+    // ── Test 13: substring ───────────────────────────────────────
+    drop(print("[Test 13] substring"));
+    string:sub1 = aria_libc_string_substring("Hello World", 6i64, 5i64);
+    drop(assert_str_eq(sub1, "World", "substring(6, 5) = World"));
+
+    string:sub2 = aria_libc_string_substring("Hello World", 0i64, 5i64);
+    drop(assert_str_eq(sub2, "Hello", "substring(0, 5) = Hello"));
+
+    // ── Test 14: int_to_string / float_to_string ─────────────────
+    drop(print("[Test 14] number to string"));
+    string:istr = aria_libc_string_from_int(12345i64);
+    drop(assert_str_eq(istr, "12345", "from_int(12345) = 12345"));
+
+    string:nstr = aria_libc_string_from_int(0i64 - 42i64);
+    drop(assert_str_eq(nstr, "-42", "from_int(-42) = -42"));
+
+    // ── Test 15: concat_to ───────────────────────────────────────
+    drop(print("[Test 15] concat_to"));
+    int64:cbuf = aria_libc_mem_alloc(256i64);
+    int64:cset = aria_libc_mem_set(cbuf, 0i64, 256i64);
+    drop(assert_eq(cset, cbuf, "memset concat buffer"));
+
+    int64:c1 = aria_libc_string_copy_to(cbuf, "Hello");
+    drop(assert_eq(c1, 5i64, "initial copy"));
+
+    int64:c2 = aria_libc_string_concat_to(cbuf, 256i64, " World");
+    drop(assert_eq(c2, 11i64, "concat returns total len 11"));
+
+    string:cstr = aria_libc_mem_read_string(cbuf, 256i64);
+    drop(assert_str_eq(cstr, "Hello World", "concat result correct"));
+
+    int64:crel = aria_libc_mem_release(cbuf);
+    drop(assert_eq(crel, 0i64, "release concat buffer"));
+
+    // ── Summary ──────────────────────────────────────────────────
+    drop(print(""));
+    drop(print("=== Results ==="));
+    drop(print("  Passed: " + string_from_int(pass_count)));
+    drop(print("  Failed: " + string_from_int(fail_count)));
+
+    if (fail_count > 0i64) {
+        drop(print("SOME TESTS FAILED"));
+        exit(1);
+    }
+
+    drop(print("ALL TESTS PASSED"));
+    exit(0);
+};

@@ -1,0 +1,296 @@
+// test_libc_mem.aria — Tests for aria-libc Memory wrappers
+//
+// Compile:
+//   ariac test_libc_mem.aria -o test_libc_mem -L../shim -laria_libc_mem
+//
+// Run:
+//   LD_LIBRARY_PATH=../shim ./test_libc_mem
+
+extern "aria_libc_mem" {
+    func:aria_libc_mem_errno = int64();
+    func:aria_libc_mem_strerror = string(int64:errnum);
+
+    func:aria_libc_mem_alloc = int64(int64:size);
+    func:aria_libc_mem_calloc = int64(int64:count, int64:size);
+    func:aria_libc_mem_realloc = int64(int64:ptr, int64:new_size);
+    func:aria_libc_mem_release = int64(int64:ptr);
+
+    func:aria_libc_mem_copy = int64(int64:dst, int64:src, int64:n);
+    func:aria_libc_mem_move = int64(int64:dst, int64:src, int64:n);
+    func:aria_libc_mem_set = int64(int64:dst, int64:val, int64:n);
+    func:aria_libc_mem_compare = int64(int64:a, int64:b, int64:n);
+
+    func:aria_libc_mem_read_byte = int64(int64:ptr, int64:offset);
+    func:aria_libc_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
+    func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
+    func:aria_libc_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
+
+    func:aria_libc_mem_read_string = string(int64:ptr, int64:max_len);
+    func:aria_libc_mem_write_string = int64(int64:ptr, string:s);
+
+    func:aria_libc_mem_offset = int64(int64:ptr, int64:offset);
+    func:aria_libc_mem_ptr_size = int64();
+}
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_neq = NIL(int64:actual, int64:unexpected, string:msg) {
+    if (actual != unexpected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    should not be: " + string_from_int(unexpected)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    drop(print("FAILSAFE triggered"));
+    exit(1);
+};
+
+func:main = int32() {
+    drop(print("=== aria-libc Memory Tests ==="));
+    drop(print(""));
+
+    // ── Test 1: Basic alloc + release ────────────────────────────
+    drop(print("[Test 1] alloc + release"));
+    int64:ptr = aria_libc_mem_alloc(256i64);
+    drop(assert_neq(ptr, 0i64, "alloc(256) returns non-zero pointer"));
+
+    int64:rel = aria_libc_mem_release(ptr);
+    drop(assert_eq(rel, 0i64, "release returns 0"));
+
+    // ── Test 2: calloc (zero-initialized) ────────────────────────
+    drop(print("[Test 2] calloc"));
+    int64:cptr = aria_libc_mem_calloc(10i64, 8i64);
+    drop(assert_neq(cptr, 0i64, "calloc(10, 8) returns non-zero pointer"));
+
+    // calloc should zero-initialize: read first byte
+    int64:first_byte = aria_libc_mem_read_byte(cptr, 0i64);
+    drop(assert_eq(first_byte, 0i64, "calloc'd memory first byte is 0"));
+
+    int64:mid_byte = aria_libc_mem_read_byte(cptr, 40i64);
+    drop(assert_eq(mid_byte, 0i64, "calloc'd memory byte@40 is 0"));
+
+    int64:crel = aria_libc_mem_release(cptr);
+    drop(assert_eq(crel, 0i64, "release calloc'd memory"));
+
+    // ── Test 3: Write/read bytes ─────────────────────────────────
+    drop(print("[Test 3] write_byte + read_byte"));
+    int64:buf = aria_libc_mem_alloc(64i64);
+
+    int64:wb1 = aria_libc_mem_write_byte(buf, 0i64, 65i64);
+    drop(assert_eq(wb1, 0i64, "write_byte returns 0"));
+
+    int64:wb2 = aria_libc_mem_write_byte(buf, 1i64, 66i64);
+    drop(assert_eq(wb2, 0i64, "write_byte offset 1 returns 0"));
+
+    int64:wb3 = aria_libc_mem_write_byte(buf, 2i64, 67i64);
+    drop(assert_eq(wb3, 0i64, "write_byte offset 2 returns 0"));
+
+    int64:rb1 = aria_libc_mem_read_byte(buf, 0i64);
+    drop(assert_eq(rb1, 65i64, "read_byte offset 0 = 65 (A)"));
+
+    int64:rb2 = aria_libc_mem_read_byte(buf, 1i64);
+    drop(assert_eq(rb2, 66i64, "read_byte offset 1 = 66 (B)"));
+
+    int64:rb3 = aria_libc_mem_read_byte(buf, 2i64);
+    drop(assert_eq(rb3, 67i64, "read_byte offset 2 = 67 (C)"));
+
+    int64:brel = aria_libc_mem_release(buf);
+    drop(assert_eq(brel, 0i64, "release byte buffer"));
+
+    // ── Test 4: Write/read int64 ─────────────────────────────────
+    drop(print("[Test 4] write_int64 + read_int64"));
+    int64:ibuf = aria_libc_mem_alloc(64i64);
+
+    int64:wi1 = aria_libc_mem_write_int64(ibuf, 0i64, 42i64);
+    drop(assert_eq(wi1, 0i64, "write_int64 offset 0 returns 0"));
+
+    int64:wi2 = aria_libc_mem_write_int64(ibuf, 8i64, 1000i64);
+    drop(assert_eq(wi2, 0i64, "write_int64 offset 8 returns 0"));
+
+    int64:ri1 = aria_libc_mem_read_int64(ibuf, 0i64);
+    drop(assert_eq(ri1, 42i64, "read_int64 offset 0 = 42"));
+
+    int64:ri2 = aria_libc_mem_read_int64(ibuf, 8i64);
+    drop(assert_eq(ri2, 1000i64, "read_int64 offset 8 = 1000"));
+
+    int64:irel = aria_libc_mem_release(ibuf);
+    drop(assert_eq(irel, 0i64, "release int64 buffer"));
+
+    // ── Test 5: Write/read string ────────────────────────────────
+    drop(print("[Test 5] write_string + read_string"));
+    int64:sbuf = aria_libc_mem_alloc(128i64);
+
+    int64:ws = aria_libc_mem_write_string(sbuf, "Hello, Memory!");
+    drop(assert_eq(ws, 14i64, "write_string returns 14 bytes"));
+
+    string:rs = aria_libc_mem_read_string(sbuf, 128i64);
+    drop(assert_str_eq(rs, "Hello, Memory!", "read_string returns correct content"));
+
+    int64:srel = aria_libc_mem_release(sbuf);
+    drop(assert_eq(srel, 0i64, "release string buffer"));
+
+    // ── Test 6: memset + memcmp ──────────────────────────────────
+    drop(print("[Test 6] memset + memcmp"));
+    int64:a = aria_libc_mem_alloc(32i64);
+    int64:b = aria_libc_mem_alloc(32i64);
+
+    int64:sa = aria_libc_mem_set(a, 0i64, 32i64);
+    drop(assert_eq(sa, a, "memset returns dst pointer"));
+
+    int64:sb = aria_libc_mem_set(b, 0i64, 32i64);
+    drop(assert_eq(sb, b, "memset returns dst pointer (b)"));
+
+    // Both filled with zeros — should compare equal
+    int64:cmp1 = aria_libc_mem_compare(a, b, 32i64);
+    drop(assert_eq(cmp1, 0i64, "memcmp: both zeroed = equal"));
+
+    // Set a to all 0xFF, should differ
+    int64:sa2 = aria_libc_mem_set(a, 255i64, 32i64);
+    drop(assert_eq(sa2, a, "memset a to 0xFF"));
+
+    int64:cmp2 = aria_libc_mem_compare(a, b, 32i64);
+    drop(assert_neq(cmp2, 0i64, "memcmp: a=0xFF vs b=0x00 != equal"));
+
+    int64:arel = aria_libc_mem_release(a);
+    drop(assert_eq(arel, 0i64, "release a"));
+    int64:brel2 = aria_libc_mem_release(b);
+    drop(assert_eq(brel2, 0i64, "release b"));
+
+    // ── Test 7: memcpy ──────────────────────────────────────────
+    drop(print("[Test 7] memcpy"));
+    int64:src = aria_libc_mem_alloc(64i64);
+    int64:dst = aria_libc_mem_alloc(64i64);
+
+    int64:wss = aria_libc_mem_write_string(src, "Copy me!");
+    drop(assert_eq(wss, 8i64, "write source string"));
+
+    int64:cp = aria_libc_mem_copy(dst, src, 9i64);
+    drop(assert_eq(cp, dst, "memcpy returns dst"));
+
+    string:copied = aria_libc_mem_read_string(dst, 64i64);
+    drop(assert_str_eq(copied, "Copy me!", "memcpy'd string correct"));
+
+    int64:srel2 = aria_libc_mem_release(src);
+    drop(assert_eq(srel2, 0i64, "release src"));
+    int64:drel = aria_libc_mem_release(dst);
+    drop(assert_eq(drel, 0i64, "release dst"));
+
+    // ── Test 8: memmove (overlapping) ────────────────────────────
+    drop(print("[Test 8] memmove (overlap-safe)"));
+    int64:mbuf = aria_libc_mem_alloc(64i64);
+    int64:mws = aria_libc_mem_write_string(mbuf, "ABCDEFGH");
+    drop(assert_eq(mws, 8i64, "write ABCDEFGH"));
+
+    // Move "CDEFGH" (offset 2) to offset 0 (overlapping)
+    int64:src_off = aria_libc_mem_offset(mbuf, 2i64);
+    int64:mv = aria_libc_mem_move(mbuf, src_off, 6i64);
+    drop(assert_eq(mv, mbuf, "memmove returns dst"));
+
+    // Add null terminator at offset 6
+    int64:nt = aria_libc_mem_write_byte(mbuf, 6i64, 0i64);
+    drop(assert_eq(nt, 0i64, "write null terminator"));
+
+    string:moved = aria_libc_mem_read_string(mbuf, 64i64);
+    drop(assert_str_eq(moved, "CDEFGH", "memmove overlapping correct"));
+
+    int64:mrel = aria_libc_mem_release(mbuf);
+    drop(assert_eq(mrel, 0i64, "release memmove buffer"));
+
+    // ── Test 9: realloc ──────────────────────────────────────────
+    drop(print("[Test 9] realloc"));
+    int64:rptr = aria_libc_mem_alloc(16i64);
+    drop(assert_neq(rptr, 0i64, "initial alloc for realloc test"));
+
+    int64:rwb = aria_libc_mem_write_string(rptr, "Hello");
+    drop(assert_eq(rwb, 5i64, "write before realloc"));
+
+    int64:rptr2 = aria_libc_mem_realloc(rptr, 256i64);
+    drop(assert_neq(rptr2, 0i64, "realloc returns non-zero"));
+
+    // Content should be preserved after realloc
+    string:after_realloc = aria_libc_mem_read_string(rptr2, 256i64);
+    drop(assert_str_eq(after_realloc, "Hello", "realloc preserves content"));
+
+    int64:rrel = aria_libc_mem_release(rptr2);
+    drop(assert_eq(rrel, 0i64, "release realloc'd pointer"));
+
+    // ── Test 10: pointer offset ──────────────────────────────────
+    drop(print("[Test 10] pointer offset"));
+    int64:optr = aria_libc_mem_alloc(32i64);
+    int64:ows = aria_libc_mem_write_string(optr, "ABCDEF");
+    drop(assert_eq(ows, 6i64, "write for offset test"));
+
+    int64:off3 = aria_libc_mem_offset(optr, 3i64);
+    string:from3 = aria_libc_mem_read_string(off3, 10i64);
+    drop(assert_str_eq(from3, "DEF", "offset(3) reads from D onward"));
+
+    int64:orel = aria_libc_mem_release(optr);
+    drop(assert_eq(orel, 0i64, "release offset test buffer"));
+
+    // ── Test 11: ptr_size ────────────────────────────────────────
+    drop(print("[Test 11] ptr_size"));
+    int64:psz = aria_libc_mem_ptr_size();
+    drop(assert_eq(psz, 8i64, "ptr_size = 8 on 64-bit"));
+
+    // ── Test 12: Error on invalid args ───────────────────────────
+    drop(print("[Test 12] Error handling"));
+    int64:bad = aria_libc_mem_alloc(0i64 - 1i64);
+    drop(assert_eq(bad, 0i64, "alloc(-1) returns 0"));
+
+    int64:bad_set = aria_libc_mem_set(0i64, 0i64, 10i64);
+    drop(assert_eq(bad_set, 0i64, "memset(NULL, ...) returns 0"));
+
+    int64:bad_cmp = aria_libc_mem_compare(0i64, 0i64, 10i64);
+    drop(assert_eq(bad_cmp, 0i64, "memcmp(NULL, NULL, ...) returns 0"));
+
+    // Release NULL should be safe (no-op)
+    int64:null_rel = aria_libc_mem_release(0i64);
+    drop(assert_eq(null_rel, 0i64, "release(NULL) returns 0"));
+
+    // ── Summary ──────────────────────────────────────────────────
+    drop(print(""));
+    drop(print("=== Results ==="));
+    drop(print("  Passed: " + string_from_int(pass_count)));
+    drop(print("  Failed: " + string_from_int(fail_count)));
+
+    if (fail_count > 0i64) {
+        drop(print("SOME TESTS FAILED"));
+        exit(1);
+    }
+
+    drop(print("ALL TESTS PASSED"));
+    exit(0);
+};

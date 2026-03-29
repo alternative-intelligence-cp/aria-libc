@@ -1,0 +1,210 @@
+// aria_libc_string.aria — Aria wrappers for libc string functions
+//
+// Provides strlen, strcmp, strncmp, strcpy, strncpy, strstr, strchr,
+// strtol, strtod, toupper, tolower, character classification, substring,
+// and string<->number conversions.
+//
+// Usage:
+//   use "../src/aria_libc_string.aria".*;
+//   int64:len = raw(libc_strlen("hello world"));
+//   int64:idx = raw(libc_strstr("hello world", "world"));
+
+// ── Extern declarations (individual — propagates through use) ────────
+
+// Error handling
+extern func:aria_libc_string_errno = int64();
+extern func:aria_libc_string_strerror = string(int64:errnum);
+
+// Length
+extern func:aria_libc_string_length = int64(string:s);
+
+// Comparison
+extern func:aria_libc_string_compare = int64(string:a, string:b);
+extern func:aria_libc_string_compare_n = int64(string:a, string:b, int64:n);
+
+// Copy into allocated memory (dst is int64 pointer)
+extern func:aria_libc_string_copy_to = int64(int64:dst_ptr, string:src);
+extern func:aria_libc_string_copy_to_n = int64(int64:dst_ptr, string:src, int64:n);
+
+// Search (returns index, -1 if not found)
+extern func:aria_libc_string_find = int64(string:haystack, string:needle);
+extern func:aria_libc_string_find_char = int64(string:s, int64:c);
+extern func:aria_libc_string_find_last_char = int64(string:s, int64:c);
+
+// Conversion
+extern func:aria_libc_string_to_int = int64(string:s);
+extern func:aria_libc_string_to_float = flt64(string:s);
+
+// Case conversion (character-level)
+extern func:aria_libc_string_upper = int64(int64:c);
+extern func:aria_libc_string_lower = int64(int64:c);
+
+// Character classification
+extern func:aria_libc_string_is_alpha = int64(int64:c);
+extern func:aria_libc_string_is_digit = int64(int64:c);
+extern func:aria_libc_string_is_alnum = int64(int64:c);
+extern func:aria_libc_string_is_space = int64(int64:c);
+
+// String duplication (returns int64 pointer to malloc'd copy)
+extern func:aria_libc_string_duplicate = int64(string:s);
+
+// String from memory pointer
+extern func:aria_libc_string_from_ptr = string(int64:ptr);
+
+// Concatenation into buffer
+extern func:aria_libc_string_concat_to = int64(int64:dst_ptr, int64:dst_size, string:src);
+
+// Substring extraction
+extern func:aria_libc_string_substring = string(string:s, int64:start, int64:len);
+
+// Number to string
+extern func:aria_libc_string_from_int = string(int64:val);
+extern func:aria_libc_string_from_float = string(flt64:val);
+
+// ── Public API ───────────────────────────────────────────────────────
+
+// -- Error helpers --
+
+pub func:libc_str_errno = int64() {
+    int64:code = aria_libc_string_errno();
+    pass(code);
+};
+
+pub func:libc_str_strerror = string(int64:errnum) {
+    string:msg = aria_libc_string_strerror(errnum);
+    pass(msg);
+};
+
+// -- Length --
+
+pub func:libc_strlen = int64(string:s) {
+    int64:len = aria_libc_string_length(s);
+    pass(len);
+};
+
+// -- Comparison --
+
+pub func:libc_strcmp = int64(string:a, string:b) {
+    int64:result = aria_libc_string_compare(a, b);
+    pass(result);
+};
+
+pub func:libc_strncmp = int64(string:a, string:b, int64:n) {
+    int64:result = aria_libc_string_compare_n(a, b, n);
+    pass(result);
+};
+
+// -- Copy --
+
+pub func:libc_strcpy = int64(int64:dst_ptr, string:src) {
+    int64:result = aria_libc_string_copy_to(dst_ptr, src);
+    pass(result);
+};
+
+pub func:libc_strncpy = int64(int64:dst_ptr, string:src, int64:n) {
+    int64:result = aria_libc_string_copy_to_n(dst_ptr, src, n);
+    pass(result);
+};
+
+// -- Search --
+
+pub func:libc_strstr = int64(string:haystack, string:needle) {
+    int64:idx = aria_libc_string_find(haystack, needle);
+    pass(idx);
+};
+
+pub func:libc_strchr = int64(string:s, int64:c) {
+    int64:idx = aria_libc_string_find_char(s, c);
+    pass(idx);
+};
+
+pub func:libc_strrchr = int64(string:s, int64:c) {
+    int64:idx = aria_libc_string_find_last_char(s, c);
+    pass(idx);
+};
+
+// -- Conversion --
+
+pub func:libc_strtol = int64(string:s) {
+    int64:val = aria_libc_string_to_int(s);
+    pass(val);
+};
+
+pub func:libc_strtod = flt64(string:s) {
+    flt64:val = aria_libc_string_to_float(s);
+    pass(val);
+};
+
+// -- Case conversion --
+
+pub func:libc_toupper = int64(int64:c) {
+    int64:result = aria_libc_string_upper(c);
+    pass(result);
+};
+
+pub func:libc_tolower = int64(int64:c) {
+    int64:result = aria_libc_string_lower(c);
+    pass(result);
+};
+
+// -- Character classification --
+
+pub func:libc_is_alpha = int64(int64:c) {
+    int64:result = aria_libc_string_is_alpha(c);
+    pass(result);
+};
+
+pub func:libc_is_digit = int64(int64:c) {
+    int64:result = aria_libc_string_is_digit(c);
+    pass(result);
+};
+
+pub func:libc_is_alnum = int64(int64:c) {
+    int64:result = aria_libc_string_is_alnum(c);
+    pass(result);
+};
+
+pub func:libc_is_space = int64(int64:c) {
+    int64:result = aria_libc_string_is_space(c);
+    pass(result);
+};
+
+// -- String duplication --
+
+pub func:libc_strdup = int64(string:s) {
+    int64:ptr = aria_libc_string_duplicate(s);
+    pass(ptr);
+};
+
+// -- String from memory pointer --
+
+pub func:libc_string_from_ptr = string(int64:ptr) {
+    string:s = aria_libc_string_from_ptr(ptr);
+    pass(s);
+};
+
+// -- Concatenation --
+
+pub func:libc_strcat_to = int64(int64:dst_ptr, int64:dst_size, string:src) {
+    int64:result = aria_libc_string_concat_to(dst_ptr, dst_size, src);
+    pass(result);
+};
+
+// -- Substring --
+
+pub func:libc_substring = string(string:s, int64:start, int64:len) {
+    string:result = aria_libc_string_substring(s, start, len);
+    pass(result);
+};
+
+// -- Number to string --
+
+pub func:libc_int_to_string = string(int64:val) {
+    string:result = aria_libc_string_from_int(val);
+    pass(result);
+};
+
+pub func:libc_float_to_string = string(flt64:val) {
+    string:result = aria_libc_string_from_float(val);
+    pass(result);
+};

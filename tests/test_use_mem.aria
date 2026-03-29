@@ -1,0 +1,96 @@
+// test_use_mem.aria — Test use-import of aria_libc_mem module
+//
+// Compile:
+//   ariac test_use_mem.aria -o test_use_mem -L../shim -laria_libc_mem
+//
+// Run:
+//   LD_LIBRARY_PATH=../shim ./test_use_mem
+
+use "../src/aria_libc_mem.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    drop(print("FAILSAFE triggered"));
+    exit(1);
+};
+
+func:main = int32() {
+    drop(print("=== aria-libc Memory use-import Tests ==="));
+    drop(print(""));
+
+    // Test alloc + write + read via pub wrappers
+    int64:ptr = raw(libc_alloc(64i64));
+    int64:is_valid = 0i64;
+    if (ptr != 0i64) {
+        is_valid = 1i64;
+    }
+    drop(assert_eq(is_valid, 1i64, "libc_alloc returns valid pointer"));
+
+    int64:ws = raw(libc_mem_write_string(ptr, "Hello via use-import"));
+    drop(assert_eq(ws, 20i64, "libc_mem_write_string writes 20 bytes"));
+
+    string:rs = raw(libc_mem_read_string(ptr, 64i64));
+    drop(assert_str_eq(rs, "Hello via use-import", "libc_mem_read_string correct"));
+
+    int64:psz = raw(libc_mem_ptr_size());
+    drop(assert_eq(psz, 8i64, "libc_mem_ptr_size = 8"));
+
+    int64:rel = raw(libc_mem_release(ptr));
+    drop(assert_eq(rel, 0i64, "libc_mem_release returns 0"));
+
+    // Test calloc via pub wrapper
+    int64:cptr = raw(libc_calloc(4i64, 8i64));
+    int64:cv = 0i64;
+    if (cptr != 0i64) {
+        cv = 1i64;
+    }
+    drop(assert_eq(cv, 1i64, "libc_calloc returns valid pointer"));
+
+    int64:b = raw(libc_mem_read_byte(cptr, 0i64));
+    drop(assert_eq(b, 0i64, "calloc'd byte is 0"));
+
+    int64:crel = raw(libc_mem_release(cptr));
+    drop(assert_eq(crel, 0i64, "release calloc'd memory"));
+
+    // Summary
+    drop(print(""));
+    drop(print("=== Results ==="));
+    drop(print("  Passed: " + string_from_int(pass_count)));
+    drop(print("  Failed: " + string_from_int(fail_count)));
+
+    if (fail_count > 0i64) {
+        drop(print("SOME TESTS FAILED"));
+        exit(1);
+    }
+
+    drop(print("ALL TESTS PASSED"));
+    exit(0);
+};

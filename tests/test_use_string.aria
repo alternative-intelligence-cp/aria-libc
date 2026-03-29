@@ -1,0 +1,108 @@
+// test_use_string.aria — Test use-import of aria_libc_string module
+//
+// Compile:
+//   ariac test_use_string.aria -o test_use_string -L../shim -laria_libc_string -laria_libc_mem
+//
+// Run:
+//   LD_LIBRARY_PATH=../shim ./test_use_string
+
+use "../src/aria_libc_string.aria".*;
+use "../src/aria_libc_mem.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    drop(print("FAILSAFE triggered"));
+    exit(1);
+};
+
+func:main = int32() {
+    drop(print("=== aria-libc String use-import Tests ==="));
+    drop(print(""));
+
+    // Test strlen
+    int64:len = raw(libc_strlen("hello"));
+    drop(assert_eq(len, 5i64, "libc_strlen(hello) = 5"));
+
+    // Test strcmp
+    int64:cmp = raw(libc_strcmp("abc", "abc"));
+    drop(assert_eq(cmp, 0i64, "libc_strcmp(abc, abc) = 0"));
+
+    // Test strstr
+    int64:idx = raw(libc_strstr("hello world", "world"));
+    drop(assert_eq(idx, 6i64, "libc_strstr(hello world, world) = 6"));
+
+    // Test strtol
+    int64:val = raw(libc_strtol("999"));
+    drop(assert_eq(val, 999i64, "libc_strtol(999) = 999"));
+
+    // Test toupper/tolower
+    int64:up = raw(libc_toupper(97i64));
+    drop(assert_eq(up, 65i64, "libc_toupper(a) = A"));
+
+    int64:lo = raw(libc_tolower(65i64));
+    drop(assert_eq(lo, 97i64, "libc_tolower(A) = a"));
+
+    // Test substring
+    string:sub = raw(libc_substring("Hello World", 6i64, 5i64));
+    drop(assert_str_eq(sub, "World", "libc_substring = World"));
+
+    // Test int_to_string
+    string:istr = raw(libc_int_to_string(42i64));
+    drop(assert_str_eq(istr, "42", "libc_int_to_string(42) = 42"));
+
+    // Test strdup + string_from_ptr (using mem module for release)
+    int64:dptr = raw(libc_strdup("Dup test"));
+    int64:dv = 0i64;
+    if (dptr != 0i64) {
+        dv = 1i64;
+    }
+    drop(assert_eq(dv, 1i64, "libc_strdup returns non-zero"));
+
+    string:ds = raw(libc_string_from_ptr(dptr));
+    drop(assert_str_eq(ds, "Dup test", "libc_string_from_ptr correct"));
+
+    int64:dr = raw(libc_mem_release(dptr));
+    drop(assert_eq(dr, 0i64, "release dup'd string"));
+
+    // Summary
+    drop(print(""));
+    drop(print("=== Results ==="));
+    drop(print("  Passed: " + string_from_int(pass_count)));
+    drop(print("  Failed: " + string_from_int(fail_count)));
+
+    if (fail_count > 0i64) {
+        drop(print("SOME TESTS FAILED"));
+        exit(1);
+    }
+
+    drop(print("ALL TESTS PASSED"));
+    exit(0);
+};
