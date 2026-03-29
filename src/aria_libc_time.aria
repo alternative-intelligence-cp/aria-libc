@@ -1,0 +1,86 @@
+// aria_libc_time.aria — Aria wrappers for libc time functions
+//
+// Provides time_now (epoch seconds), clock (CPU ticks), sleep/usleep,
+// time_format/time_format_utc (strftime), and time_diff.
+//
+// Usage:
+//   use "../src/aria_libc_time.aria".*;
+//   int64:now = raw(libc_time_now());
+
+// ── Extern declarations (individual — propagates through use) ────────
+
+// Error handling
+extern func:aria_libc_time_errno = int64();
+extern func:aria_libc_time_strerror = string(int64:errnum);
+
+// Core time
+extern func:aria_libc_time_now = int64();
+extern func:aria_libc_time_clock = int64();
+
+// Sleep
+extern func:aria_libc_time_sleep = int64(int64:seconds);
+extern func:aria_libc_time_usleep = int64(int64:microseconds);
+
+// Formatting
+extern func:aria_libc_time_format = string(int64:epoch, string:fmt);
+extern func:aria_libc_time_format_utc = string(int64:epoch, string:fmt);
+
+// Difference
+extern func:aria_libc_time_diff = int64(int64:a, int64:b);
+
+// ── Public API ───────────────────────────────────────────────────────
+
+// -- Error helpers --
+
+pub func:libc_time_errno = int64() {
+    int64:code = aria_libc_time_errno();
+    pass(code);
+};
+
+pub func:libc_time_strerror = string(int64:errnum) {
+    string:msg = aria_libc_time_strerror(errnum);
+    pass(msg);
+};
+
+// -- Core time --
+
+pub func:libc_time_now = int64() {
+    int64:val = aria_libc_time_now();
+    pass(val);
+};
+
+pub func:libc_clock = int64() {
+    int64:val = aria_libc_time_clock();
+    pass(val);
+};
+
+// -- Sleep --
+
+pub func:libc_sleep = int64(int64:seconds) {
+    int64:result = aria_libc_time_sleep(seconds);
+    pass(result);
+};
+
+pub func:libc_usleep = int64(int64:microseconds) {
+    int64:result = aria_libc_time_usleep(microseconds);
+    pass(result);
+};
+
+// -- Formatting --
+
+pub func:libc_time_format = string(int64:epoch, string:fmt) {
+    string:result = aria_libc_time_format(epoch, fmt);
+    pass(result);
+};
+
+pub func:libc_time_format_utc = string(int64:epoch, string:fmt) {
+    string:result = aria_libc_time_format_utc(epoch, fmt);
+    pass(result);
+};
+
+// -- Difference --
+
+pub func:libc_time_diff = int64(int64:a, int64:b) {
+    int64:result = aria_libc_time_diff(a, b);
+    pass(result);
+};

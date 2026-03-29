@@ -1,14 +1,14 @@
 [package]
 name        = "aria-libc"
-version     = "0.0.2"
+version     = "0.0.3"
 description = "Standard C library wrappers for Aria — libc without the boilerplate"
 license     = "Apache-2.0"
 repository  = "https://github.com/alternative-intelligence-cp/aria-libc"
 authors     = ["Alternative Intelligence"]
-keywords    = ["libc", "musl", "static", "ffi", "system", "memory", "string"]
+keywords    = ["libc", "musl", "static", "ffi", "system", "memory", "string", "math", "time"]
 categories  = ["system", "ffi"]
 
 [dependencies]
 
 [build]
-link_libraries = ["aria_libc_io", "aria_libc_mem", "aria_libc_string"]
+link_libraries = ["aria_libc_io", "aria_libc_mem", "aria_libc_string", "aria_libc_math", "aria_libc_time"]

@@ -1,0 +1,109 @@
+// test_use_math.aria — Test use-import of aria_libc_math module
+//
+// Compile:
+//   ariac test_use_math.aria -o test_use_math -L../shim -laria_libc_math -lm
+//
+// Run:
+//   LD_LIBRARY_PATH=../shim ./test_use_math
+
+use "../src/aria_libc_math.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    drop(print("FAILSAFE triggered"));
+    exit(1);
+};
+
+func:main = int32() {
+    drop(print("=== aria-libc Math use-import Tests ==="));
+    drop(print(""));
+
+    flt64:eps = 0.000001;
+
+    // Test PI constant
+    flt64:pi_val = raw(libc_pi());
+    int64:pi_near = raw(libc_math_approx_eq(pi_val, 3.14159265358979, eps));
+    drop(assert_eq(pi_near, 1i64, "libc_pi() ~ 3.14159"));
+
+    // Test sin
+    flt64:sin_val = raw(libc_sin(0.0));
+    int64:sin_near = raw(libc_math_approx_eq(sin_val, 0.0, eps));
+    drop(assert_eq(sin_near, 1i64, "libc_sin(0) = 0"));
+
+    // Test cos
+    flt64:cos_val = raw(libc_cos(0.0));
+    int64:cos_near = raw(libc_math_approx_eq(cos_val, 1.0, eps));
+    drop(assert_eq(cos_near, 1i64, "libc_cos(0) = 1"));
+
+    // Test sqrt
+    flt64:sqrt_val = raw(libc_sqrt(9.0));
+    int64:sqrt_near = raw(libc_math_approx_eq(sqrt_val, 3.0, eps));
+    drop(assert_eq(sqrt_near, 1i64, "libc_sqrt(9) = 3"));
+
+    // Test pow
+    flt64:pow_val = raw(libc_pow(2.0, 10.0));
+    int64:pow_near = raw(libc_math_approx_eq(pow_val, 1024.0, eps));
+    drop(assert_eq(pow_near, 1i64, "libc_pow(2,10) = 1024"));
+
+    // Test floor via to_int
+    flt64:floor_val = raw(libc_floor(3.7));
+    int64:floor_i = raw(libc_math_to_int(floor_val));
+    drop(assert_eq(floor_i, 3i64, "libc_floor(3.7) = 3"));
+
+    // Test ceil via to_int
+    flt64:ceil_val = raw(libc_ceil(3.2));
+    int64:ceil_i = raw(libc_math_to_int(ceil_val));
+    drop(assert_eq(ceil_i, 4i64, "libc_ceil(3.2) = 4"));
+
+    // Test round via to_int
+    flt64:round_val = raw(libc_round(3.5));
+    int64:round_i = raw(libc_math_to_int(round_val));
+    drop(assert_eq(round_i, 4i64, "libc_round(3.5) = 4"));
+
+    // Test fabs
+    flt64:neg_val = 0.0 - 5.5;
+    flt64:fabs_val = raw(libc_fabs(neg_val));
+    int64:fabs_near = raw(libc_math_approx_eq(fabs_val, 5.5, eps));
+    drop(assert_eq(fabs_near, 1i64, "libc_fabs(-5.5) = 5.5"));
+
+    // Test to_int
+    int64:ti = raw(libc_math_to_int(7.9));
+    drop(assert_eq(ti, 7i64, "libc_math_to_int(7.9) = 7"));
+
+    // Test log
+    flt64:log_val = raw(libc_log(1.0));
+    int64:log_near = raw(libc_math_approx_eq(log_val, 0.0, eps));
+    drop(assert_eq(log_near, 1i64, "libc_log(1) = 0"));
+
+    // Test E constant
+    flt64:e_val = raw(libc_e());
+    int64:e_near = raw(libc_math_approx_eq(e_val, 2.71828182845904, eps));
+    drop(assert_eq(e_near, 1i64, "libc_e() ~ 2.71828"));
+
+    // ── Summary ──────────────────────────────────────────────────
+    drop(print(""));
+    drop(print("=== Results ==="));
+    drop(print("PASS: " + string_from_int(pass_count)));
+    drop(print("FAIL: " + string_from_int(fail_count)));
+
+    if (fail_count > 0i64) {
+        exit(1);
+    }
+
+    exit(0);
+};

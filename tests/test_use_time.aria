@@ -1,0 +1,93 @@
+// test_use_time.aria — Test use-import of aria_libc_time module
+//
+// Compile:
+//   ariac test_use_time.aria -o test_use_time -L../shim -laria_libc_time
+//
+// Run:
+//   LD_LIBRARY_PATH=../shim ./test_use_time
+
+use "../src/aria_libc_time.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    drop(print("FAILSAFE triggered"));
+    exit(1);
+};
+
+func:main = int32() {
+    drop(print("=== aria-libc Time use-import Tests ==="));
+    drop(print(""));
+
+    // Test time_now
+    int64:now = raw(libc_time_now());
+    int64:now_ok = 0i64;
+    if (now > 0i64) {
+        now_ok = 1i64;
+    }
+    drop(assert_eq(now_ok, 1i64, "libc_time_now() > 0"));
+
+    // Test time_diff
+    int64:diff = raw(libc_time_diff(1000i64, 500i64));
+    drop(assert_eq(diff, 500i64, "libc_time_diff(1000, 500) = 500"));
+
+    // Test time_format_utc
+    string:fmt = raw(libc_time_format_utc(0i64, "%Y"));
+    drop(assert_str_eq(fmt, "1970", "libc_time_format_utc(0, %Y) = 1970"));
+
+    // Test clock
+    int64:clk = raw(libc_clock());
+    int64:neg1 = 0i64 - 1i64;
+    int64:clk_ok = 0i64;
+    if (clk > neg1) {
+        clk_ok = 1i64;
+    }
+    drop(assert_eq(clk_ok, 1i64, "libc_clock() >= 0"));
+
+    // Test sleep
+    int64:sl = raw(libc_sleep(0i64));
+    drop(assert_eq(sl, 0i64, "libc_sleep(0) = 0"));
+
+    // Test usleep
+    int64:us = raw(libc_usleep(1000i64));
+    drop(assert_eq(us, 0i64, "libc_usleep(1000) = 0"));
+
+    // ── Summary ──────────────────────────────────────────────────
+    drop(print(""));
+    drop(print("=== Results ==="));
+    drop(print("PASS: " + string_from_int(pass_count)));
+    drop(print("FAIL: " + string_from_int(fail_count)));
+
+    if (fail_count > 0i64) {
+        exit(1);
+    }
+
+    exit(0);
+};

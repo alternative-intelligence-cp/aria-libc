@@ -1,0 +1,132 @@
+// test_libc_time.aria — Tests for aria-libc Time wrappers
+//
+// Compile:
+//   ariac test_libc_time.aria -o test_libc_time -L../shim -laria_libc_time
+//
+// Run:
+//   LD_LIBRARY_PATH=../shim ./test_libc_time
+
+extern "aria_libc_time" {
+    func:aria_libc_time_errno = int64();
+    func:aria_libc_time_strerror = string(int64:errnum);
+
+    func:aria_libc_time_now = int64();
+    func:aria_libc_time_clock = int64();
+
+    func:aria_libc_time_sleep = int64(int64:seconds);
+    func:aria_libc_time_usleep = int64(int64:microseconds);
+
+    func:aria_libc_time_format = string(int64:epoch, string:fmt);
+    func:aria_libc_time_format_utc = string(int64:epoch, string:fmt);
+
+    func:aria_libc_time_diff = int64(int64:a, int64:b);
+}
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    drop(print("FAILSAFE triggered"));
+    exit(1);
+};
+
+func:main = int32() {
+    drop(print("=== aria-libc Time Tests ==="));
+    drop(print(""));
+
+    // ── Test 1: time_now ─────────────────────────────────────────
+    drop(print("[Test 1] time_now"));
+    int64:now = aria_libc_time_now();
+    int64:now_positive = 0i64;
+    if (now > 0i64) {
+        now_positive = 1i64;
+    }
+    drop(assert_eq(now_positive, 1i64, "time_now() > 0"));
+
+    // Two calls should be close together
+    int64:now2 = aria_libc_time_now();
+    int64:delta = now2 - now;
+    int64:delta_small = 0i64;
+    if (delta < 2i64) {
+        delta_small = 1i64;
+    }
+    drop(assert_eq(delta_small, 1i64, "two time_now() calls within 2s"));
+
+    // ── Test 2: clock ────────────────────────────────────────────
+    drop(print("[Test 2] clock"));
+    int64:clk = aria_libc_time_clock();
+    int64:neg1 = 0i64 - 1i64;
+    int64:clk_valid = 0i64;
+    if (clk > neg1) {
+        clk_valid = 1i64;
+    }
+    drop(assert_eq(clk_valid, 1i64, "clock() >= 0"));
+
+    // ── Test 3: sleep ────────────────────────────────────────────
+    drop(print("[Test 3] sleep"));
+    int64:sleep_result = aria_libc_time_sleep(0i64);
+    drop(assert_eq(sleep_result, 0i64, "sleep(0) returns 0"));
+
+    // ── Test 4: usleep ───────────────────────────────────────────
+    drop(print("[Test 4] usleep"));
+    int64:usleep_result = aria_libc_time_usleep(1000i64);
+    drop(assert_eq(usleep_result, 0i64, "usleep(1000) returns 0"));
+
+    // ── Test 5: time_diff ────────────────────────────────────────
+    drop(print("[Test 5] time_diff"));
+    int64:diff1 = aria_libc_time_diff(1000i64, 500i64);
+    drop(assert_eq(diff1, 500i64, "time_diff(1000, 500) = 500"));
+
+    int64:diff2 = aria_libc_time_diff(500i64, 1000i64);
+    int64:neg500 = 0i64 - 500i64;
+    drop(assert_eq(diff2, neg500, "time_diff(500, 1000) = -500"));
+
+    // ── Test 6: time_format_utc ──────────────────────────────────
+    drop(print("[Test 6] time_format_utc"));
+    string:fmt_year = aria_libc_time_format_utc(0i64, "%Y");
+    drop(assert_str_eq(fmt_year, "1970", "epoch 0 year = 1970"));
+
+    string:fmt_full = aria_libc_time_format_utc(0i64, "%Y-%m-%d %H:%M:%S");
+    drop(assert_str_eq(fmt_full, "1970-01-01 00:00:00", "epoch 0 full = 1970-01-01 00:00:00"));
+
+    string:fmt_hm = aria_libc_time_format_utc(0i64, "%H:%M");
+    drop(assert_str_eq(fmt_hm, "00:00", "epoch 0 time = 00:00"));
+
+    // ── Summary ──────────────────────────────────────────────────
+    drop(print(""));
+    drop(print("=== Results ==="));
+    drop(print("PASS: " + string_from_int(pass_count)));
+    drop(print("FAIL: " + string_from_int(fail_count)));
+
+    if (fail_count > 0i64) {
+        exit(1);
+    }
+
+    exit(0);
+};

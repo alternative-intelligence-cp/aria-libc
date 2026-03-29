@@ -13,6 +13,10 @@ tests/test_libc_mem
 tests/test_libc_string
 tests/test_use_mem
 tests/test_use_string
+tests/test_libc_math
+tests/test_libc_time
+tests/test_use_math
+tests/test_use_time
 tests/test_use_import
 
 # musl source (large, download separately)
