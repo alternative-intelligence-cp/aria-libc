@@ -30,6 +30,8 @@ declare -a ALL_TESTS=(
     "use_math:tests/test_use_math.aria:-laria_libc_math"
     "use_time:tests/test_use_time.aria:-laria_libc_time"
     "use_process:tests/test_use_process.aria:-laria_libc_process"
+    "net:tests/test_libc_net.aria:-laria_libc_net"
+    "use_net:tests/test_use_net.aria:-laria_libc_net"
 )
 
 # ── Filter tests if args provided ───────────────────────────────────

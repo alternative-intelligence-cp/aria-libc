@@ -1,0 +1,194 @@
+// test_use_net.aria — Test use-import of aria_libc_net module
+//
+// Compile:
+//   ariac test_use_net.aria -o test_use_net -L../shim -laria_libc_net
+//
+// Run:
+//   LD_LIBRARY_PATH=../shim ./test_use_net
+
+use "../src/aria_libc_net.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_gt = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual > threshold) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected > " + string_from_int(threshold)));
+        drop(print("    actual:    " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_gte = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual >= threshold) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected >= " + string_from_int(threshold)));
+        drop(print("    actual:     " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Tests using pub wrappers from use-import
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_use_constants = NIL() {
+    drop(println("=== Use-Import: Constants ==="));
+
+    int64:af4 = raw(libc_AF_INET());
+    drop(assert_gt(af4, 0i64, "libc_AF_INET > 0"));
+
+    int64:st = raw(libc_SOCK_STREAM());
+    drop(assert_gt(st, 0i64, "libc_SOCK_STREAM > 0"));
+
+    int64:dg = raw(libc_SOCK_DGRAM());
+    drop(assert_gt(dg, 0i64, "libc_SOCK_DGRAM > 0"));
+
+    int64:tcp = raw(libc_IPPROTO_TCP());
+    drop(assert_gt(tcp, 0i64, "libc_IPPROTO_TCP > 0"));
+
+    pass(NIL);
+};
+
+func:test_use_socket = NIL() {
+    drop(println("=== Use-Import: Socket Create/Close ==="));
+
+    int64:af = raw(libc_AF_INET());
+    int64:st = raw(libc_SOCK_STREAM());
+    int64:fd = raw(libc_net_socket(af, st, 0i64));
+    drop(assert_gte(fd, 0i64, "libc_net_socket returns valid fd"));
+
+    int64:rc = raw(libc_net_close(fd));
+    drop(assert_eq(rc, 0i64, "libc_net_close returns 0"));
+
+    pass(NIL);
+};
+
+func:test_use_tcp_loopback = NIL() {
+    drop(println("=== Use-Import: TCP Loopback ==="));
+
+    // Server
+    int64:sfd = raw(libc_tcp_listen("127.0.0.1", 0i64, 5i64));
+    drop(assert_gte(sfd, 0i64, "libc_tcp_listen returns valid fd"));
+
+    int64:port = raw(libc_net_local_port(sfd));
+    drop(assert_gt(port, 0i64, "server port > 0"));
+
+    // Client
+    int64:af = raw(libc_AF_INET());
+    int64:st = raw(libc_SOCK_STREAM());
+    int64:cfd = raw(libc_net_socket(af, st, 0i64));
+    int64:rc = raw(libc_net_connect_ipv4(cfd, "127.0.0.1", port));
+    drop(assert_eq(rc, 0i64, "connect returns 0"));
+
+    // Accept
+    int64:afd = raw(libc_net_accept(sfd));
+    drop(assert_gte(afd, 0i64, "accept returns valid fd"));
+
+    // Send/recv
+    int64:sent = raw(libc_net_send(cfd, "use-import test"));
+    drop(assert_eq(sent, 15i64, "sent 15 bytes"));
+
+    string:data = raw(libc_net_recv(afd, 1024i64));
+    drop(assert_str_eq(data, "use-import test", "recv matches"));
+
+    // Cleanup
+    drop(libc_net_close(cfd));
+    drop(libc_net_close(afd));
+    drop(libc_net_close(sfd));
+
+    pass(NIL);
+};
+
+func:test_use_ip_utils = NIL() {
+    drop(println("=== Use-Import: IP Utilities ==="));
+
+    string:hostname = raw(libc_net_gethostname());
+    int64:hlen = string_length(hostname);
+    drop(assert_gt(hlen, 0i64, "libc_net_gethostname non-empty"));
+
+    int64:ip = raw(libc_net_inet_aton("127.0.0.1"));
+    drop(assert_eq(ip, 2130706433i64, "libc_net_inet_aton(127.0.0.1)"));
+
+    string:addr = raw(libc_net_inet_ntoa(2130706433i64));
+    drop(assert_str_eq(addr, "127.0.0.1", "libc_net_inet_ntoa roundtrip"));
+
+    int64:n = raw(libc_net_htons(80i64));
+    int64:h = raw(libc_net_ntohs(n));
+    drop(assert_eq(h, 80i64, "htons/ntohs roundtrip"));
+
+    pass(NIL);
+};
+
+func:test_use_resolve = NIL() {
+    drop(println("=== Use-Import: Resolve ==="));
+
+    string:ip = raw(libc_net_resolve_ipv4("localhost"));
+    drop(assert_str_eq(ip, "127.0.0.1", "resolve_ipv4(localhost) = 127.0.0.1"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Main
+// ══════════════════════════════════════════════════════════════════════
+
+func:failsafe = int32(tbb32:err) {
+    drop(println("FAILSAFE triggered"));
+    exit(1i32);
+};
+
+func:main = int32() {
+    drop(println("aria-libc Net Use-Import Tests"));
+    drop(println("=============================="));
+
+    drop(test_use_constants());
+    drop(test_use_socket());
+    drop(test_use_tcp_loopback());
+    drop(test_use_ip_utils());
+    drop(test_use_resolve());
+
+    drop(println("=============================="));
+    drop(print("PASS: " + string_from_int(pass_count)));
+    drop(print("FAIL: " + string_from_int(fail_count)));
+
+    if (fail_count > 0i64) {
+        exit(1i32);
+    }
+    exit(0i32);
+};

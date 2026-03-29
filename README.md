@@ -8,15 +8,15 @@ aria-libc provides Aria-native wrappers around C standard library (libc) functio
 
 ## Why?
 
-1. **No more extern boilerplate** — Ready-made wrappers for I/O, memory, strings, math, time, and process functions
+1. **No more extern boilerplate** — Ready-made wrappers for I/O, memory, strings, math, time, process, and networking functions
 2. **Static builds** — Link against musl instead of glibc for zero-dependency, fully portable binaries
 3. **One canonical source** — Tested, documented libc wrappers the whole ecosystem can depend on
 
 ## Status
 
-**v0.1.0** — Static Linking Pipeline complete. 262 tests passing across 12 test suites (6 modules × 2 link modes).
+**v0.1.1** — Networking module (BSD sockets, address resolution). 342 tests passing across 14 test suites (7 modules × 2 link modes).
 
-All 6 modules fully implemented:
+All 7 modules fully implemented:
 - Dynamic linking via glibc (default)
 - **Static linking via musl** — zero runtime dependencies
 
@@ -49,6 +49,7 @@ aria-libc/
 | **math** | sin, cos, tan, asin, acos, atan, atan2, sqrt, pow, exp, log, log10, floor, ceil, round, fabs, fmod, PI, E, to_int, approx_eq, to_string | 46 |
 | **time** | time_now, clock, sleep, usleep, time_format, time_format_utc, time_diff | 10 |
 | **process** | getenv, setenv, unsetenv, run (system), getpid, getppid, getuid, getgid, getcwd, chdir, errno, strerror | 25 |
+| **net** | socket, close, shutdown, bind, listen, accept, connect, send, recv, sendto, recvfrom, setsockopt, getsockopt, set_nonblocking, poll, resolve (getaddrinfo), gethostname, inet_aton/ntoa, htons/ntohs/htonl/ntohl, tcp_connect, tcp_listen | 80 |
 
 ### Link Modes
 
