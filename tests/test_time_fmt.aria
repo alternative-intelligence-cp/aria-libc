@@ -1,0 +1,122 @@
+// test_time_fmt.aria — Tests for _time_fmt.aria (pure Aria time decomposition)
+
+use "../src/_time_fmt.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq_int = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected ");
+        print(string_from_int(expected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+func:main = int32() {
+    println("=== aria-libc _time_fmt tests (pure Aria) ===");
+    println("");
+
+    // ── Epoch 0: 1970-01-01 00:00:00 UTC Thursday ──────────────────
+    println("-- epoch 0 (1970-01-01 00:00:00 Thu) --");
+    int64:e0 = 0i64;
+    drop(assert_eq_int(libc_time_year(e0), 1970i64, "epoch 0 year = 1970"));
+    drop(assert_eq_int(libc_time_month(e0), 1i64, "epoch 0 month = 1"));
+    drop(assert_eq_int(libc_time_day(e0), 1i64, "epoch 0 day = 1"));
+    drop(assert_eq_int(libc_time_hour(e0), 0i64, "epoch 0 hour = 0"));
+    drop(assert_eq_int(libc_time_minute(e0), 0i64, "epoch 0 minute = 0"));
+    drop(assert_eq_int(libc_time_second(e0), 0i64, "epoch 0 second = 0"));
+    drop(assert_eq_int(libc_time_weekday(e0), 4i64, "epoch 0 weekday = 4 (Thursday)"));
+    drop(assert_eq_int(libc_time_yearday(e0), 1i64, "epoch 0 yearday = 1"));
+
+    // ── Epoch 3723: 1970-01-01 01:02:03 UTC ────────────────────────
+    println("-- epoch 3723 (01:02:03) --");
+    int64:e1 = 3723i64;
+    drop(assert_eq_int(libc_time_hour(e1), 1i64, "epoch 3723 hour = 1"));
+    drop(assert_eq_int(libc_time_minute(e1), 2i64, "epoch 3723 minute = 2"));
+    drop(assert_eq_int(libc_time_second(e1), 3i64, "epoch 3723 second = 3"));
+
+    // ── Epoch 86399: 1970-01-01 23:59:59 UTC ───────────────────────
+    println("-- epoch 86399 (23:59:59) --");
+    int64:e2 = 86399i64;
+    drop(assert_eq_int(libc_time_hour(e2), 23i64, "epoch 86399 hour = 23"));
+    drop(assert_eq_int(libc_time_minute(e2), 59i64, "epoch 86399 minute = 59"));
+    drop(assert_eq_int(libc_time_second(e2), 59i64, "epoch 86399 second = 59"));
+
+    // ── Epoch 86400: 1970-01-02 Friday ──────────────────────────────
+    println("-- epoch 86400 (1970-01-02 Fri) --");
+    int64:e3 = 86400i64;
+    drop(assert_eq_int(libc_time_year(e3), 1970i64, "epoch 86400 year = 1970"));
+    drop(assert_eq_int(libc_time_month(e3), 1i64, "epoch 86400 month = 1"));
+    drop(assert_eq_int(libc_time_day(e3), 2i64, "epoch 86400 day = 2"));
+    drop(assert_eq_int(libc_time_weekday(e3), 5i64, "epoch 86400 weekday = 5 (Friday)"));
+    drop(assert_eq_int(libc_time_yearday(e3), 2i64, "epoch 86400 yearday = 2"));
+
+    // ── Epoch 946684800: 2000-01-01 Saturday ────────────────────────
+    println("-- epoch 946684800 (2000-01-01 Sat) --");
+    int64:e4 = 946684800i64;
+    drop(assert_eq_int(libc_time_year(e4), 2000i64, "epoch 946684800 year = 2000"));
+    drop(assert_eq_int(libc_time_month(e4), 1i64, "epoch 946684800 month = 1"));
+    drop(assert_eq_int(libc_time_day(e4), 1i64, "epoch 946684800 day = 1"));
+    drop(assert_eq_int(libc_time_weekday(e4), 6i64, "epoch 946684800 weekday = 6 (Saturday)"));
+
+    // ── Epoch 951782400: 2000-02-29 Tuesday (leap day!) ─────────────
+    println("-- epoch 951782400 (2000-02-29 Tue, leap day) --");
+    int64:e5 = 951782400i64;
+    drop(assert_eq_int(libc_time_year(e5), 2000i64, "epoch 951782400 year = 2000"));
+    drop(assert_eq_int(libc_time_month(e5), 2i64, "epoch 951782400 month = 2"));
+    drop(assert_eq_int(libc_time_day(e5), 29i64, "epoch 951782400 day = 29"));
+    drop(assert_eq_int(libc_time_weekday(e5), 2i64, "epoch 951782400 weekday = 2 (Tuesday)"));
+    drop(assert_eq_int(libc_time_yearday(e5), 60i64, "epoch 951782400 yearday = 60"));
+
+    // ── Epoch 978220800: 2000-12-31 ─────────────────────────────────
+    println("-- epoch 978220800 (2000-12-31) --");
+    int64:e6 = 978220800i64;
+    drop(assert_eq_int(libc_time_year(e6), 2000i64, "epoch 978220800 year = 2000"));
+    drop(assert_eq_int(libc_time_month(e6), 12i64, "epoch 978220800 month = 12"));
+    drop(assert_eq_int(libc_time_day(e6), 31i64, "epoch 978220800 day = 31"));
+    drop(assert_eq_int(libc_time_yearday(e6), 366i64, "epoch 978220800 yearday = 366 (leap year)"));
+
+    // ── Epoch 1704067200: 2024-01-01 Monday ─────────────────────────
+    println("-- epoch 1704067200 (2024-01-01 Mon) --");
+    int64:e7 = 1704067200i64;
+    drop(assert_eq_int(libc_time_year(e7), 2024i64, "epoch 1704067200 year = 2024"));
+    drop(assert_eq_int(libc_time_month(e7), 1i64, "epoch 1704067200 month = 1"));
+    drop(assert_eq_int(libc_time_day(e7), 1i64, "epoch 1704067200 day = 1"));
+    drop(assert_eq_int(libc_time_weekday(e7), 1i64, "epoch 1704067200 weekday = 1 (Monday)"));
+
+    // ── Leap year tests ─────────────────────────────────────────────
+    println("-- leap year --");
+    drop(assert_eq_int(libc_time_is_leap(2000i64), 1i64, "2000 is leap (div by 400)"));
+    drop(assert_eq_int(libc_time_is_leap(2024i64), 1i64, "2024 is leap (div by 4)"));
+    drop(assert_eq_int(libc_time_is_leap(1900i64), 0i64, "1900 not leap (div by 100 not 400)"));
+    drop(assert_eq_int(libc_time_is_leap(2023i64), 0i64, "2023 not leap"));
+
+    // ── time_diff ───────────────────────────────────────────────────
+    println("-- time_diff --");
+    drop(assert_eq_int(libc_time_diff(100i64, 50i64), 50i64, "time_diff(100, 50) = 50"));
+    drop(assert_eq_int(libc_time_diff(50i64, 100i64), -50i64, "time_diff(50, 100) = -50"));
+
+    // ── Summary ─────────────────────────────────────────────────────
+    println("");
+    print("PASS: ");
+    println(string_from_int(pass_count));
+    print("FAIL: ");
+    println(string_from_int(fail_count));
+
+    exit(0);
+};

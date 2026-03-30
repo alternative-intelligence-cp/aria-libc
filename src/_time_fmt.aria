@@ -1,0 +1,196 @@
+// _time_fmt.aria — Pure Aria time decomposition (UTC)
+// No syscalls, no C shim. Pure arithmetic from epoch seconds.
+//
+// Uses the Howard Hinnant civil_from_days algorithm for date decomposition.
+// All functions assume UTC. Handles non-negative epoch values.
+//
+// Usage:
+//   use "../src/_time_fmt.aria".*;
+//
+// Example:
+//   int64:y = libc_time_year(1704067200i64);   // 2024
+//   int64:m = libc_time_month(1704067200i64);   // 1
+//   int64:d = libc_time_day(1704067200i64);     // 1
+//   int64:h = libc_time_hour(1704067200i64);    // 0
+
+// ── Internal constants ──────────────────────────────────────────────
+int64:_SECS_PER_DAY    = 86400i64;
+int64:_SECS_PER_HOUR   = 3600i64;
+int64:_SECS_PER_MINUTE = 60i64;
+
+// ── Time arithmetic ─────────────────────────────────────────────────
+
+// Returns the difference in seconds: a - b.
+pub func:libc_time_diff = int64(int64:a, int64:b) {
+    int64:diff = a - b;
+    pass(diff);
+};
+
+// ── Leap year check ─────────────────────────────────────────────────
+
+// Returns 1 if the given year is a leap year, 0 otherwise.
+// Leap year rule: divisible by 4, except centuries unless divisible by 400.
+pub func:libc_time_is_leap = int64(int64:year) {
+    int64:r4 = year - (year / 4i64) * 4i64;
+    if (r4 != 0i64) {
+        pass(0i64);
+    }
+    int64:r100 = year - (year / 100i64) * 100i64;
+    if (r100 != 0i64) {
+        pass(1i64);
+    }
+    int64:r400 = year - (year / 400i64) * 400i64;
+    if (r400 == 0i64) {
+        pass(1i64);
+    }
+    pass(0i64);
+};
+
+// ── Time-of-day decomposition ───────────────────────────────────────
+
+// Returns the hour (0–23) for the given epoch.
+pub func:libc_time_hour = int64(int64:epoch) {
+    int64:days = epoch / _SECS_PER_DAY;
+    int64:rem = epoch - days * _SECS_PER_DAY;
+    int64:h = rem / _SECS_PER_HOUR;
+    pass(h);
+};
+
+// Returns the minute (0–59) for the given epoch.
+pub func:libc_time_minute = int64(int64:epoch) {
+    int64:days = epoch / _SECS_PER_DAY;
+    int64:rem = epoch - days * _SECS_PER_DAY;
+    int64:h = rem / _SECS_PER_HOUR;
+    int64:rem2 = rem - h * _SECS_PER_HOUR;
+    int64:m = rem2 / _SECS_PER_MINUTE;
+    pass(m);
+};
+
+// Returns the second (0–59) for the given epoch.
+pub func:libc_time_second = int64(int64:epoch) {
+    int64:days = epoch / _SECS_PER_DAY;
+    int64:rem = epoch - days * _SECS_PER_DAY;
+    int64:h = rem / _SECS_PER_HOUR;
+    int64:rem2 = rem - h * _SECS_PER_HOUR;
+    int64:m = rem2 / _SECS_PER_MINUTE;
+    int64:s = rem2 - m * _SECS_PER_MINUTE;
+    pass(s);
+};
+
+// ── Date decomposition (Hinnant civil_from_days algorithm) ──────────
+// Converts epoch seconds to Gregorian calendar year, month, day.
+// Reference: Howard Hinnant's chrono-compatible algorithms.
+
+// Returns the year for the given epoch.
+pub func:libc_time_year = int64(int64:epoch) {
+    int64:days = epoch / _SECS_PER_DAY;
+    int64:z = days + 719468i64;
+    int64:era = z / 146097i64;
+    int64:doe = z - era * 146097i64;
+    int64:yoe = (doe - doe / 1460i64 + doe / 36524i64 - doe / 146096i64) / 365i64;
+    int64:y = yoe + era * 400i64;
+    int64:doy = doe - (365i64 * yoe + yoe / 4i64 - yoe / 100i64);
+    int64:mp = (5i64 * doy + 2i64) / 153i64;
+    int64:m = 0i64;
+    if (mp < 10i64) {
+        m = mp + 3i64;
+    } else {
+        m = mp - 9i64;
+    }
+    if (m < 3i64) {
+        y = y + 1i64;
+    }
+    pass(y);
+};
+
+// Returns the month (1–12) for the given epoch.
+pub func:libc_time_month = int64(int64:epoch) {
+    int64:days = epoch / _SECS_PER_DAY;
+    int64:z = days + 719468i64;
+    int64:era = z / 146097i64;
+    int64:doe = z - era * 146097i64;
+    int64:yoe = (doe - doe / 1460i64 + doe / 36524i64 - doe / 146096i64) / 365i64;
+    int64:doy = doe - (365i64 * yoe + yoe / 4i64 - yoe / 100i64);
+    int64:mp = (5i64 * doy + 2i64) / 153i64;
+    int64:m = 0i64;
+    if (mp < 10i64) {
+        m = mp + 3i64;
+    } else {
+        m = mp - 9i64;
+    }
+    pass(m);
+};
+
+// Returns the day of month (1–31) for the given epoch.
+pub func:libc_time_day = int64(int64:epoch) {
+    int64:days = epoch / _SECS_PER_DAY;
+    int64:z = days + 719468i64;
+    int64:era = z / 146097i64;
+    int64:doe = z - era * 146097i64;
+    int64:yoe = (doe - doe / 1460i64 + doe / 36524i64 - doe / 146096i64) / 365i64;
+    int64:doy = doe - (365i64 * yoe + yoe / 4i64 - yoe / 100i64);
+    int64:mp = (5i64 * doy + 2i64) / 153i64;
+    int64:d = doy - (153i64 * mp + 2i64) / 5i64 + 1i64;
+    pass(d);
+};
+
+// ── Weekday ─────────────────────────────────────────────────────────
+
+// Returns the day of week (0=Sunday, 1=Monday, ..., 6=Saturday).
+// Jan 1, 1970 was a Thursday (4).
+pub func:libc_time_weekday = int64(int64:epoch) {
+    int64:days = epoch / _SECS_PER_DAY;
+    int64:shifted = days + 4i64;
+    int64:wd = shifted - (shifted / 7i64) * 7i64;
+    pass(wd);
+};
+
+// ── Day of year ─────────────────────────────────────────────────────
+
+// Returns the day of year (1–366).
+pub func:libc_time_yearday = int64(int64:epoch) {
+    // Compute year, month, day using Hinnant algorithm (inlined)
+    int64:days_total = epoch / _SECS_PER_DAY;
+    int64:z = days_total + 719468i64;
+    int64:era = z / 146097i64;
+    int64:doe = z - era * 146097i64;
+    int64:yoe = (doe - doe / 1460i64 + doe / 36524i64 - doe / 146096i64) / 365i64;
+    int64:y = yoe + era * 400i64;
+    int64:doy = doe - (365i64 * yoe + yoe / 4i64 - yoe / 100i64);
+    int64:mp = (5i64 * doy + 2i64) / 153i64;
+    int64:d = doy - (153i64 * mp + 2i64) / 5i64 + 1i64;
+    int64:m = 0i64;
+    if (mp < 10i64) {
+        m = mp + 3i64;
+    } else {
+        m = mp - 9i64;
+    }
+    if (m < 3i64) {
+        y = y + 1i64;
+    }
+
+    // Compute yearday from month and day
+    // Months 1-2: cumulative = (m-1)*31
+    // Months 3+:  cumulative = (153*(m-3)+2)/5 + 59 + leap_adjustment
+    int64:cumul = 0i64;
+    if (m < 3i64) {
+        cumul = (m - 1i64) * 31i64;
+    } else {
+        cumul = (153i64 * (m - 3i64) + 2i64) / 5i64 + 59i64;
+        // Inline leap year check to avoid cross-function call (triggers Result contagion)
+        int64:_r4 = y - (y / 4i64) * 4i64;
+        if (_r4 == 0i64) {
+            int64:_r100 = y - (y / 100i64) * 100i64;
+            if (_r100 != 0i64) {
+                cumul = cumul + 1i64;
+            } else {
+                int64:_r400 = y - (y / 400i64) * 400i64;
+                if (_r400 == 0i64) {
+                    cumul = cumul + 1i64;
+                }
+            }
+        }
+    }
+    int64:yd = cumul + d;
+    pass(yd);
+};

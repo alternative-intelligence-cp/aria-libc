@@ -52,6 +52,9 @@ declare -a ALL_TESTS=(
     "mmap:tests/test_mmap.aria:-laria_libc_mem"
     "alloc:tests/test_alloc.aria:-laria_libc_mem"
     "buf:tests/test_buf.aria:-laria_libc_mem"
+    # v0.2.4: Pure Aria sys() time + clock
+    "time_pure:tests/test_time_pure.aria:-laria_libc_mem"
+    "time_fmt:tests/test_time_fmt.aria:"
 )
 
 # ── Filter tests if args provided ───────────────────────────────────

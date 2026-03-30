@@ -1,0 +1,118 @@
+// test_time_pure.aria — Tests for _time.aria (clock_gettime, nanosleep)
+
+use "../src/_time.aria".*;
+use "../src/_constants.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq_int = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected ");
+        print(string_from_int(expected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_gt = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual > threshold) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected > ");
+        print(string_from_int(threshold));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_lt = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual < threshold) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected < ");
+        print(string_from_int(threshold));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+func:main = int32() {
+    println("=== aria-libc _time tests (pure sys()) ===");
+    println("");
+
+    // ── Test 1: Realtime clock ─────────────────────────────────────
+    println("-- realtime clock --");
+    int64:now1 = libc_time_now() ?! 0i64;
+    drop(assert_gt(now1, 1700000000i64, "time_now > 1700000000 (post-2023)"));
+    drop(assert_lt(now1, 2100000000i64, "time_now < 2100000000 (pre-2036)"));
+
+    int64:ns1 = libc_time_now_ns() ?! 0i64;
+    drop(assert_gt(ns1, -1i64, "time_now_ns >= 0"));
+    drop(assert_lt(ns1, 1000000000i64, "time_now_ns < 1000000000"));
+
+    // ── Test 2: Monotonic clock ────────────────────────────────────
+    println("-- monotonic clock --");
+    int64:mono1 = libc_monotonic_sec() ?! 0i64;
+    drop(assert_gt(mono1, -1i64, "monotonic_sec >= 0"));
+
+    int64:mono_ns1 = libc_monotonic_ns() ?! 0i64;
+    drop(assert_gt(mono_ns1, -1i64, "monotonic_ns >= 0"));
+    drop(assert_lt(mono_ns1, 1000000000i64, "monotonic_ns < 1000000000"));
+
+    // Second monotonic call should be >= first
+    int64:mono2 = libc_monotonic_sec() ?! 0i64;
+    drop(assert_gt(mono2, mono1 - 1i64, "monotonic sec non-decreasing"));
+
+    // ── Test 3: Sleep ──────────────────────────────────────────────
+    println("-- sleep --");
+    int64:ns_ret = libc_nanosleep(0i64, 1000000i64) ?! -1i64;
+    drop(assert_eq_int(ns_ret, 0i64, "nanosleep(0, 1ms) returns 0"));
+
+    int64:sl_ret = libc_sleep(0i64) ?! -1i64;
+    drop(assert_eq_int(sl_ret, 0i64, "sleep(0) returns 0"));
+
+    int64:us_ret = libc_usleep(1000i64) ?! -1i64;
+    drop(assert_eq_int(us_ret, 0i64, "usleep(1000us) returns 0"));
+
+    // ── Test 4: Consistency ────────────────────────────────────────
+    println("-- consistency --");
+    int64:now2 = libc_time_now() ?! 0i64;
+    drop(assert_gt(now2, now1 - 1i64, "second time_now >= first"));
+
+    // ── Summary ────────────────────────────────────────────────────
+    println("");
+    print("PASS: ");
+    println(string_from_int(pass_count));
+    print("FAIL: ");
+    println(string_from_int(fail_count));
+
+    exit(0);
+};

@@ -1,0 +1,133 @@
+// _time.aria — Pure Aria time/clock/sleep via sys()
+// No C time shim required. Calls kernel directly.
+//
+// Port status:
+//   libc_time_now, libc_time_now_ns — PURE sys(CLOCK_GETTIME)
+//   libc_monotonic_sec, libc_monotonic_ns — PURE sys(CLOCK_GETTIME)
+//   libc_nanosleep, libc_sleep, libc_usleep — PURE sys(NANOSLEEP)
+//
+// struct timespec layout (16 bytes):
+//   offset 0: tv_sec  (int64) — seconds
+//   offset 8: tv_nsec (int64) — nanoseconds
+//
+// Usage:
+//   use "../src/_time.aria".*;
+//   use "../src/_constants.aria".*;
+//
+// Example:
+//   int64:now = libc_time_now() ?! 0i64;
+//   int64:ns  = libc_time_now_ns() ?! 0i64;
+
+use "_constants.aria".*;
+
+// ── Struct sizes and offsets ────────────────────────────────────────
+int64:TIMESPEC_SIZE    = 16i64;
+int64:TIMESPEC_OFF_SEC = 0i64;
+int64:TIMESPEC_OFF_NS  = 8i64;
+
+// ── Extern helpers for struct field access ───────────────────────────
+// Temporary dependency on C shim for pointer dereference.
+// Will be removed when Aria gets native ptr read/write.
+extern func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
+extern func:aria_libc_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
+
+// ── Internal: call clock_gettime and return timespec buffer ─────────
+// Allocates a timespec via mmap, calls CLOCK_GETTIME, returns buffer ptr.
+// Caller MUST munmap(buf, TIMESPEC_SIZE) when done.
+// Returns 0 on failure.
+func:_clock_gettime_buf = int64(int64:clockid) {
+    Result<int64>:buf_r = sys(MMAP, 0i64, TIMESPEC_SIZE, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) {
+        pass(0i64);
+    }
+
+    Result<int64>:r = sys(CLOCK_GETTIME, clockid, buf);
+    int64:ret = r ? -1i64;
+
+    if (ret < 0i64) {
+        drop(sys(MUNMAP, buf, TIMESPEC_SIZE));
+        pass(0i64);
+    }
+
+    pass(buf);
+};
+
+// ── Realtime clock ──────────────────────────────────────────────────
+
+// Returns current epoch time in seconds (UTC).
+pub func:libc_time_now = int64() {
+    int64:buf = _clock_gettime_buf(CLOCK_REALTIME) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+    int64:sec = aria_libc_mem_read_int64(buf, TIMESPEC_OFF_SEC);
+    drop(sys(MUNMAP, buf, TIMESPEC_SIZE));
+    pass(sec);
+};
+
+// Returns nanoseconds component of current realtime clock (0–999999999).
+pub func:libc_time_now_ns = int64() {
+    int64:buf = _clock_gettime_buf(CLOCK_REALTIME) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+    int64:nsec = aria_libc_mem_read_int64(buf, TIMESPEC_OFF_NS);
+    drop(sys(MUNMAP, buf, TIMESPEC_SIZE));
+    pass(nsec);
+};
+
+// ── Monotonic clock ─────────────────────────────────────────────────
+
+// Returns monotonic clock seconds (unaffected by wall clock changes).
+pub func:libc_monotonic_sec = int64() {
+    int64:buf = _clock_gettime_buf(CLOCK_MONOTONIC) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+    int64:sec = aria_libc_mem_read_int64(buf, TIMESPEC_OFF_SEC);
+    drop(sys(MUNMAP, buf, TIMESPEC_SIZE));
+    pass(sec);
+};
+
+// Returns monotonic clock nanoseconds component (0–999999999).
+pub func:libc_monotonic_ns = int64() {
+    int64:buf = _clock_gettime_buf(CLOCK_MONOTONIC) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+    int64:nsec = aria_libc_mem_read_int64(buf, TIMESPEC_OFF_NS);
+    drop(sys(MUNMAP, buf, TIMESPEC_SIZE));
+    pass(nsec);
+};
+
+// ── Sleep ───────────────────────────────────────────────────────────
+
+// Sleep for the specified seconds and nanoseconds.
+// Returns 0 on success, -1 on error.
+pub func:libc_nanosleep = int64(int64:seconds, int64:nanoseconds) {
+    // Allocate timespec for request
+    Result<int64>:req_r = sys(MMAP, 0i64, TIMESPEC_SIZE, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:req = req_r ? 0i64;
+    if (req < 1i64) { pass(-1i64); }
+
+    // Write request timespec
+    drop(aria_libc_mem_write_int64(req, TIMESPEC_OFF_SEC, seconds));
+    drop(aria_libc_mem_write_int64(req, TIMESPEC_OFF_NS, nanoseconds));
+
+    // NANOSLEEP(req, rem) — pass 0 for rem (don't need remaining time)
+    Result<int64>:r = sys(NANOSLEEP, req, 0i64);
+    int64:ret = r ? -1i64;
+
+    drop(sys(MUNMAP, req, TIMESPEC_SIZE));
+    pass(ret);
+};
+
+// Sleep for the specified number of seconds.
+// Returns 0 on success, -1 on error.
+pub func:libc_sleep = int64(int64:seconds) {
+    int64:ret = libc_nanosleep(seconds, 0i64) ?! -1i64;
+    pass(ret);
+};
+
+// Sleep for the specified number of microseconds.
+// Returns 0 on success, -1 on error.
+pub func:libc_usleep = int64(int64:microseconds) {
+    int64:sec = microseconds / 1000000i64;
+    int64:rem = microseconds - sec * 1000000i64;
+    int64:nsec = rem * 1000i64;
+    int64:ret = libc_nanosleep(sec, nsec) ?! -1i64;
+    pass(ret);
+};
