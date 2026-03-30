@@ -38,6 +38,11 @@ declare -a ALL_TESTS=(
     "use_fs:tests/test_use_fs.aria:-laria_libc_fs -laria_libc_io"
     "regex:tests/test_libc_regex.aria:-laria_libc_regex"
     "use_regex:tests/test_use_regex.aria:-laria_libc_regex"
+    # v0.2.1: Pure Aria sys() modules (no C shim link flags except where noted)
+    "errno:tests/test_errno.aria:"
+    "identity:tests/test_identity.aria:"
+    "io_core:tests/test_io_core.aria:"
+    "stat:tests/test_stat.aria:-laria_libc_mem"
 )
 
 # ── Filter tests if args provided ───────────────────────────────────
@@ -97,8 +102,8 @@ for entry in "${TESTS[@]}"; do
         continue
     fi
     
-    # Run
-    if OUTPUT=$("$BIN" 2>&1); then
+    # Run (from tests/ directory so relative paths in tests resolve correctly)
+    if OUTPUT=$(cd "$PROJECT_DIR/tests" && "$BIN" 2>&1); then
         # Count individual PASS/FAIL from output (use -o since output may be single-line)
         # Temporarily disable pipefail for grep pipelines that may have 0 matches
         set +o pipefail

@@ -1,13 +1,20 @@
 // aria_libc_process.aria — Aria wrappers for libc process/environment functions
 //
 // Provides getenv, setenv, unsetenv, system (run), getpid, getppid,
-// getuid, getgid, getcwd, chdir, and global errno access.
+// getuid, getgid, geteuid, getegid, gettid, getcwd, chdir, and global errno access.
+//
+// v0.2.1: Identity functions (getpid, getppid, getuid, getgid, geteuid, getegid,
+//          gettid) are now pure Aria via sys() — imported from _identity.aria.
+//          Legacy C-shim externs kept for env/run/cwd functions not yet ported.
 //
 // Usage:
 //   use "../src/aria_libc_process.aria".*;
 //   string:home = raw(libc_getenv("HOME"));
 
-// ── Extern declarations (individual — propagates through use) ────────
+// ── Pure Aria identity functions (v0.2.1 — replaces C shim for these) ──
+use "_identity.aria".*;
+
+// ── Extern declarations (C shim — still needed for env/run/cwd) ──────
 
 // Module error handling
 extern func:aria_libc_process_errno = int64();
@@ -25,12 +32,6 @@ extern func:aria_libc_process_unsetenv = int64(string:name);
 
 // System command
 extern func:aria_libc_process_run = int64(string:command);
-
-// Process info
-extern func:aria_libc_process_getpid = int64();
-extern func:aria_libc_process_getppid = int64();
-extern func:aria_libc_process_getuid = int64();
-extern func:aria_libc_process_getgid = int64();
 
 // Working directory
 extern func:aria_libc_process_getcwd = string();
@@ -89,28 +90,6 @@ pub func:libc_unsetenv = int64(string:name) {
 pub func:libc_run = int64(string:command) {
     int64:result = aria_libc_process_run(command);
     pass(result);
-};
-
-// -- Process info --
-
-pub func:libc_getpid = int64() {
-    int64:val = aria_libc_process_getpid();
-    pass(val);
-};
-
-pub func:libc_getppid = int64() {
-    int64:val = aria_libc_process_getppid();
-    pass(val);
-};
-
-pub func:libc_getuid = int64() {
-    int64:val = aria_libc_process_getuid();
-    pass(val);
-};
-
-pub func:libc_getgid = int64() {
-    int64:val = aria_libc_process_getgid();
-    pass(val);
 };
 
 // -- Working directory --
