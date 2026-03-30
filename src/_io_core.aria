@@ -1,0 +1,192 @@
+// _io_core.aria — Pure Aria file I/O via sys()
+// No C shim required. Calls kernel directly.
+//
+// Port status:
+//   libc_open, libc_close, libc_write, libc_seek — PURE sys()
+//   libc_write_file, libc_append_file — PURE sys()
+//   libc_read_file — hybrid (uses sys() for I/O, extern for string conversion)
+//
+// Usage:
+//   use "../src/_io_core.aria".*;
+//   use "../src/_constants.aria".*;
+
+use "_constants.aria".*;
+
+// ── String conversion helper ─────────────────────────────────────────
+// POSIX strdup() copies a null-terminated buffer into a new heap allocation.
+// The Aria FFI-STRING-RETURN path then wraps the char* into AriaString.
+// This is the only non-syscall dependency. It will be eliminated when Aria
+// gets native buffer→string support.
+extern func:strdup = string(int64:ptr);
+
+// ── File descriptor operations — PURE sys() ─────────────────────────
+
+pub func:libc_open = int64(string:path, int64:flags, int64:mode) {
+    Result<int64>:r = sys(OPEN, path, flags, mode);
+    int64:fd = r ? -1i64;
+    pass(fd);
+};
+
+pub func:libc_open_read = int64(string:path) {
+    Result<int64>:r = sys(OPEN, path, O_RDONLY, 0i64);
+    int64:fd = r ? -1i64;
+    pass(fd);
+};
+
+pub func:libc_open_write = int64(string:path) {
+    int64:flags = O_WRONLY + O_CREAT + O_TRUNC;
+    Result<int64>:r = sys(OPEN, path, flags, MODE_644);
+    int64:fd = r ? -1i64;
+    pass(fd);
+};
+
+pub func:libc_open_append = int64(string:path) {
+    int64:flags = O_WRONLY + O_CREAT + O_APPEND;
+    Result<int64>:r = sys(OPEN, path, flags, MODE_644);
+    int64:fd = r ? -1i64;
+    pass(fd);
+};
+
+pub func:libc_close = int64(int64:fd) {
+    Result<int64>:r = sys(CLOSE, fd);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+pub func:libc_write = int64(int64:fd, string:data) {
+    int64:len = string_length(data);
+    Result<int64>:r = sys(WRITE, fd, data, len);
+    int64:written = r ? -1i64;
+    pass(written);
+};
+
+pub func:libc_seek = int64(int64:fd, int64:offset, int64:whence) {
+    Result<int64>:r = sys(LSEEK, fd, offset, whence);
+    int64:pos = r ? -1i64;
+    pass(pos);
+};
+
+// ── POSIX constants as functions (backward compat) ──────────────────
+
+pub func:libc_O_RDONLY = int64() {
+    pass(O_RDONLY);
+};
+
+pub func:libc_O_WRONLY = int64() {
+    pass(O_WRONLY);
+};
+
+pub func:libc_O_RDWR = int64() {
+    pass(O_RDWR);
+};
+
+pub func:libc_O_CREAT = int64() {
+    pass(O_CREAT);
+};
+
+pub func:libc_O_TRUNC = int64() {
+    pass(O_TRUNC);
+};
+
+pub func:libc_O_APPEND = int64() {
+    pass(O_APPEND);
+};
+
+pub func:libc_SEEK_SET = int64() {
+    pass(SEEK_SET);
+};
+
+pub func:libc_SEEK_CUR = int64() {
+    pass(SEEK_CUR);
+};
+
+pub func:libc_SEEK_END = int64() {
+    pass(SEEK_END);
+};
+
+// ── Convenience: whole-file write — PURE sys() ─────────────────────
+
+pub func:libc_write_file = int64(string:path, string:content) {
+    int64:flags = O_WRONLY + O_CREAT + O_TRUNC;
+    Result<int64>:fd_r = sys(OPEN, path, flags, MODE_644);
+    int64:fd = fd_r ? -1i64;
+
+    if (fd < 0i64) {
+        pass(-1i64);
+    }
+
+    int64:len = string_length(content);
+    Result<int64>:w_r = sys(WRITE, fd, content, len);
+    int64:written = w_r ? -1i64;
+
+    drop(sys(CLOSE, fd));
+    pass(written);
+};
+
+pub func:libc_append_file = int64(string:path, string:content) {
+    int64:flags = O_WRONLY + O_CREAT + O_APPEND;
+    Result<int64>:fd_r = sys(OPEN, path, flags, MODE_644);
+    int64:fd = fd_r ? -1i64;
+
+    if (fd < 0i64) {
+        pass(-1i64);
+    }
+
+    int64:len = string_length(content);
+    Result<int64>:w_r = sys(WRITE, fd, content, len);
+    int64:written = w_r ? -1i64;
+
+    drop(sys(CLOSE, fd));
+    pass(written);
+};
+
+// ── Convenience: whole-file read — uses mmap + sys() ────────────────
+// This is the ONE function that needs the extern helper for string conversion.
+// It uses sys(MMAP) to allocate a buffer, sys(READ) to fill it, then
+// converts the buffer to an Aria string via aria_string_from_cstr_simple.
+
+pub func:libc_read_file = string(string:path) {
+    // Open file
+    Result<int64>:fd_r = sys(OPEN, path, O_RDONLY, 0i64);
+    int64:fd = fd_r ? -1i64;
+
+    if (fd < 0i64) {
+        pass("");
+    }
+
+    // Get file size via lseek to end
+    Result<int64>:sz_r = sys(LSEEK, fd, 0i64, SEEK_END);
+    int64:sz = sz_r ? 0i64;
+
+    // Seek back to start
+    drop(sys(LSEEK, fd, 0i64, SEEK_SET));
+
+    if (sz < 1i64) {
+        drop(sys(CLOSE, fd));
+        pass("");
+    }
+
+    // Allocate buffer via mmap: mmap(NULL, sz+1, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0)
+    int64:buf_sz = sz + 1i64;
+    Result<int64>:buf_r = sys(MMAP, 0i64, buf_sz, 3i64, 34i64, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+
+    if (buf < 1i64) {
+        drop(sys(CLOSE, fd));
+        pass("");
+    }
+
+    // Read file contents into buffer
+    Result<int64>:n_r = sys(READ, fd, buf, sz);
+    int64:n = n_r ? 0i64;
+
+    drop(sys(CLOSE, fd));
+
+    // Convert mmap'd buffer to Aria string via strdup (the one extern dependency)
+    string:content = strdup(buf);
+
+    // Free the mmap'd buffer
+    drop(sys(MUNMAP, buf, buf_sz));
+
+    pass(content);
+};

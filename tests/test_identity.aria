@@ -1,0 +1,111 @@
+// test_identity.aria — Tests for pure-Aria identity functions via sys()
+// No C shim involved.
+
+use "../src/_identity.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_gt = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual > threshold) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        println(msg);
+    }
+    pass(NIL);
+};
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected ");
+        print(string_from_int(expected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+func:main = int32() {
+    println("=== aria-libc identity tests (pure sys()) ===");
+    println("");
+
+    // Test 1: getpid returns a positive integer
+    println("-- getpid --");
+    int64:pid = libc_getpid() ?! 0i64;
+    drop(assert_gt(pid, 0i64, "getpid > 0"));
+
+    // Test 2: getppid returns a positive integer
+    println("-- getppid --");
+    int64:ppid = libc_getppid() ?! 0i64;
+    drop(assert_gt(ppid, 0i64, "getppid > 0"));
+
+    // Test 3: pid != ppid (we are not PID 1)
+    int64:different = 0i64;
+    if (pid != ppid) {
+        different = 1i64;
+    }
+    drop(assert_eq(different, 1i64, "pid != ppid"));
+
+    // Test 4: getuid returns > 0 (non-root user)
+    println("-- getuid --");
+    int64:uid = libc_getuid() ?! -1i64;
+    drop(assert_gt(uid, 0i64, "getuid > 0"));
+
+    // Test 5: getgid returns > 0 (non-root group)
+    println("-- getgid --");
+    int64:gid = libc_getgid() ?! -1i64;
+    drop(assert_gt(gid, 0i64, "getgid > 0"));
+
+    // Test 6: geteuid returns > 0
+    println("-- geteuid --");
+    int64:euid = libc_geteuid() ?! -1i64;
+    drop(assert_gt(euid, 0i64, "geteuid > 0"));
+
+    // Test 7: getegid returns > 0
+    println("-- getegid --");
+    int64:egid = libc_getegid() ?! -1i64;
+    drop(assert_gt(egid, 0i64, "getegid > 0"));
+
+    // Test 8: gettid returns positive
+    println("-- gettid --");
+    int64:tid = libc_gettid() ?! 0i64;
+    drop(assert_gt(tid, 0i64, "gettid > 0"));
+
+    // Test 9: uid == euid (not setuid binary)
+    println("-- consistency --");
+    drop(assert_eq(uid, euid, "uid == euid"));
+
+    // Test 10: gid == egid (not setgid binary)
+    drop(assert_eq(gid, egid, "gid == egid"));
+
+    // Summary
+    println("");
+    print("PASS: ");
+    println(string_from_int(pass_count));
+    print("FAIL: ");
+    println(string_from_int(fail_count));
+
+    if (fail_count == 0i64) {
+        println("ALL PASSED");
+    } else {
+        println("SOME FAILED");
+    }
+
+    exit(0);
+};

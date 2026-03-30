@@ -1,0 +1,63 @@
+// _constants.aria — POSIX constants for aria-libc
+// Pure Aria definitions — no C shim required.
+// These replace the old aria_libc_io_O_RDONLY() function-based constants.
+//
+// Usage:
+//   use "../src/_constants.aria".*;
+
+// ── File open flags (fcntl.h) ────────────────────────────────────────
+int64:O_RDONLY   = 0i64;
+int64:O_WRONLY   = 1i64;
+int64:O_RDWR     = 2i64;
+int64:O_CREAT    = 64i64;       // 0100 octal
+int64:O_EXCL     = 128i64;      // 0200 octal
+int64:O_NOCTTY   = 256i64;      // 0400 octal
+int64:O_TRUNC    = 512i64;      // 01000 octal
+int64:O_APPEND   = 1024i64;     // 02000 octal
+int64:O_NONBLOCK = 2048i64;     // 04000 octal
+int64:O_DIRECTORY = 65536i64;   // 0200000 octal
+int64:O_CLOEXEC   = 524288i64;  // 02000000 octal
+
+// ── Seek whence (unistd.h) ──────────────────────────────────────────
+int64:SEEK_SET = 0i64;
+int64:SEEK_CUR = 1i64;
+int64:SEEK_END = 2i64;
+
+// ── File permission modes ───────────────────────────────────────────
+int64:S_IRWXU = 448i64;   // 0700 — owner rwx
+int64:S_IRUSR = 256i64;   // 0400 — owner read
+int64:S_IWUSR = 128i64;   // 0200 — owner write
+int64:S_IXUSR = 64i64;    // 0100 — owner execute
+int64:S_IRWXG = 56i64;    // 070  — group rwx
+int64:S_IRGRP = 32i64;    // 040  — group read
+int64:S_IWGRP = 16i64;    // 020  — group write
+int64:S_IXGRP = 8i64;     // 010  — group execute
+int64:S_IRWXO = 7i64;     // 07   — other rwx
+int64:S_IROTH = 4i64;     // 04   — other read
+int64:S_IWOTH = 2i64;     // 02   — other write
+int64:S_IXOTH = 1i64;     // 01   — other execute
+
+// Common combined modes
+int64:MODE_644 = 420i64;  // rw-r--r--  (0644)
+int64:MODE_755 = 493i64;  // rwxr-xr-x  (0755)
+int64:MODE_777 = 511i64;  // rwxrwxrwx  (0777)
+int64:MODE_600 = 384i64;  // rw-------  (0600)
+
+// ── stat() file type masks (from stat.h S_IFMT field) ───────────────
+int64:S_IFMT   = 61440i64;  // 0170000 — type mask
+int64:S_IFREG  = 32768i64;  // 0100000 — regular file
+int64:S_IFDIR  = 16384i64;  // 0040000 — directory
+int64:S_IFLNK  = 40960i64;  // 0120000 — symlink
+int64:S_IFCHR  = 8192i64;   // 0020000 — char device
+int64:S_IFBLK  = 24576i64;  // 0060000 — block device
+int64:S_IFIFO  = 4096i64;   // 0010000 — FIFO/pipe
+int64:S_IFSOCK = 49152i64;  // 0140000 — socket
+
+// ── AT_* flags for *at() syscalls ───────────────────────────────────
+int64:AT_FDCWD            = -100i64;  // use current directory
+int64:AT_EMPTY_PATH       = 4096i64;
+int64:AT_SYMLINK_NOFOLLOW = 256i64;
+
+// ── Clock IDs (for clock_gettime) ───────────────────────────────────
+int64:CLOCK_REALTIME  = 0i64;
+int64:CLOCK_MONOTONIC = 1i64;

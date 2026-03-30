@@ -1,0 +1,50 @@
+// _identity.aria — Pure Aria process identity via sys()
+// No C shim required. Calls kernel directly.
+//
+// Usage:
+//   use "../src/_identity.aria".*;
+//   int64:pid = raw(libc_getpid());
+
+// ── Process identity — all safe-tier syscalls ────────────────────────
+
+pub func:libc_getpid = int64() {
+    Result<int64>:r = sys(GETPID);
+    int64:val = r ? -1i64;
+    pass(val);
+};
+
+pub func:libc_getppid = int64() {
+    Result<int64>:r = sys(GETPPID);
+    int64:val = r ? -1i64;
+    pass(val);
+};
+
+pub func:libc_getuid = int64() {
+    Result<int64>:r = sys(GETUID);
+    int64:val = r ? -1i64;
+    pass(val);
+};
+
+pub func:libc_getgid = int64() {
+    Result<int64>:r = sys(GETGID);
+    int64:val = r ? -1i64;
+    pass(val);
+};
+
+pub func:libc_geteuid = int64() {
+    Result<int64>:r = sys(GETEUID);
+    int64:val = r ? -1i64;
+    pass(val);
+};
+
+pub func:libc_getegid = int64() {
+    Result<int64>:r = sys(GETEGID);
+    int64:val = r ? -1i64;
+    pass(val);
+};
+
+pub func:libc_gettid = int64() {
+    Result<int64>:r = sys(GETTID);
+    int64:val = r ? -1i64;
+    pass(val);
+};

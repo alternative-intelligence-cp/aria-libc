@@ -1,0 +1,173 @@
+// test_io_core.aria — Tests for pure-Aria I/O core via sys()
+
+use "../src/_io_core.aria".*;
+use "../src/_constants.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq_int = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected ");
+        print(string_from_int(expected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_gt = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual > threshold) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected > ");
+        print(string_from_int(threshold));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got '");
+        print(actual);
+        print("', expected '");
+        print(expected);
+        println("')");
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+func:main = int32() {
+    println("=== aria-libc io_core tests (pure sys()) ===");
+    println("");
+
+    // ── Test 1: write_file + read_file ──────────────────────────────
+    println("-- write_file + read_file --");
+    int64:w1 = libc_write_file("/tmp/aria_io_test.txt", "hello from pure aria") ?! -1i64;
+    drop(assert_gt(w1, 0i64, "write_file returns bytes > 0"));
+    drop(assert_eq_int(w1, 20i64, "write_file wrote 20 bytes"));
+
+    string:content = libc_read_file("/tmp/aria_io_test.txt") ?! "";
+    drop(assert_str_eq(content, "hello from pure aria", "read_file returns correct content"));
+
+    // ── Test 2: append_file ────────────────────────────────────────
+    println("-- append_file --");
+    int64:a1 = libc_append_file("/tmp/aria_io_test.txt", " appended") ?! -1i64;
+    drop(assert_gt(a1, 0i64, "append_file returns bytes > 0"));
+
+    string:content2 = libc_read_file("/tmp/aria_io_test.txt") ?! "";
+    drop(assert_str_eq(content2, "hello from pure aria appended", "append_file appends correctly"));
+
+    // ── Test 3: open + write + close + read ────────────────────────
+    println("-- low-level fd ops --");
+    int64:fd = libc_open("/tmp/aria_io_test2.txt", O_WRONLY + O_CREAT + O_TRUNC, MODE_644) ?! -1i64;
+    drop(assert_gt(fd, -1i64, "open for write returns valid fd"));
+
+    int64:w2 = libc_write(fd, "low level write") ?! -1i64;
+    drop(assert_eq_int(w2, 15i64, "write wrote 15 bytes"));
+
+    int64:c1 = libc_close(fd) ?! -1i64;
+    drop(assert_eq_int(c1, 0i64, "close returns 0"));
+
+    string:content3 = libc_read_file("/tmp/aria_io_test2.txt") ?! "";
+    drop(assert_str_eq(content3, "low level write", "fd write content correct"));
+
+    // ── Test 4: seek ───────────────────────────────────────────────
+    println("-- seek --");
+    int64:fd2 = libc_open_read("/tmp/aria_io_test2.txt") ?! -1i64;
+    drop(assert_gt(fd2, -1i64, "open_read returns valid fd"));
+
+    int64:pos = libc_seek(fd2, 0i64, SEEK_END) ?! -1i64;
+    drop(assert_eq_int(pos, 15i64, "seek to end returns file size"));
+
+    int64:pos2 = libc_seek(fd2, 4i64, SEEK_SET) ?! -1i64;
+    drop(assert_eq_int(pos2, 4i64, "seek to offset 4 returns 4"));
+
+    int64:c2 = libc_close(fd2) ?! -1i64;
+    drop(assert_eq_int(c2, 0i64, "close returns 0"));
+
+    // ── Test 5: constant functions (backward compat) ───────────────
+    println("-- constants --");
+    drop(assert_eq_int(libc_O_RDONLY() ?! -1i64, 0i64, "O_RDONLY == 0"));
+    drop(assert_eq_int(libc_O_WRONLY() ?! -1i64, 1i64, "O_WRONLY == 1"));
+    drop(assert_eq_int(libc_O_RDWR() ?! -1i64, 2i64, "O_RDWR == 2"));
+    drop(assert_eq_int(libc_SEEK_SET() ?! -1i64, 0i64, "SEEK_SET == 0"));
+    drop(assert_eq_int(libc_SEEK_CUR() ?! -1i64, 1i64, "SEEK_CUR == 1"));
+    drop(assert_eq_int(libc_SEEK_END() ?! -1i64, 2i64, "SEEK_END == 2"));
+
+    // ── Test 6: open_write convenience ─────────────────────────────
+    println("-- convenience --");
+    int64:fd3 = libc_open_write("/tmp/aria_io_test3.txt") ?! -1i64;
+    drop(assert_gt(fd3, -1i64, "open_write returns valid fd"));
+    int64:w3 = libc_write(fd3, "convenience") ?! -1i64;
+    drop(assert_eq_int(w3, 11i64, "write via open_write"));
+    drop(libc_close(fd3));
+
+    string:content4 = libc_read_file("/tmp/aria_io_test3.txt") ?! "";
+    drop(assert_str_eq(content4, "convenience", "open_write + write correct"));
+
+    // ── Test 7: open_append convenience ────────────────────────────
+    int64:fd4 = libc_open_append("/tmp/aria_io_test3.txt") ?! -1i64;
+    drop(assert_gt(fd4, -1i64, "open_append returns valid fd"));
+    int64:w4 = libc_write(fd4, "!") ?! -1i64;
+    drop(assert_eq_int(w4, 1i64, "write via open_append"));
+    drop(libc_close(fd4));
+
+    string:content5 = libc_read_file("/tmp/aria_io_test3.txt") ?! "";
+    drop(assert_str_eq(content5, "convenience!", "open_append appends correctly"));
+
+    // ── Test 8: error handling — open nonexistent file ──────────────
+    println("-- error handling --");
+    int64:bad_fd = libc_open_read("/tmp/nonexistent_aria_9999.txt") ?! -1i64;
+    drop(assert_eq_int(bad_fd, -1i64, "open nonexistent returns -1"));
+
+    string:bad_read = libc_read_file("/tmp/nonexistent_aria_9999.txt") ?! "";
+    drop(assert_str_eq(bad_read, "", "read_file nonexistent returns empty"));
+
+    // ── Cleanup test files ─────────────────────────────────────────
+    drop(sys(UNLINK, "/tmp/aria_io_test.txt"));
+    drop(sys(UNLINK, "/tmp/aria_io_test2.txt"));
+    drop(sys(UNLINK, "/tmp/aria_io_test3.txt"));
+
+    // Summary
+    println("");
+    print("PASS: ");
+    println(string_from_int(pass_count));
+    print("FAIL: ");
+    println(string_from_int(fail_count));
+
+    if (fail_count == 0i64) {
+        println("ALL PASSED");
+    } else {
+        println("SOME FAILED");
+    }
+
+    exit(0);
+};
