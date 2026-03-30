@@ -1,0 +1,59 @@
+// _mmap.aria — Pure Aria mmap/munmap/mprotect/mremap via sys()
+// No C shim required. Calls kernel directly.
+//
+// Port status:
+//   libc_mmap, libc_munmap, libc_mprotect, libc_mremap — PURE sys()
+//   libc_mmap_anon — convenience wrapper (PURE sys())
+//
+// Usage:
+//   use "../src/_mmap.aria".*;
+//   use "../src/_constants.aria".*;
+//
+// Example:
+//   int64:ptr = libc_mmap_anon(4096i64) ?! 0i64;
+//   // ... use the memory ...
+//   drop(libc_munmap(ptr, 4096i64));
+
+use "_constants.aria".*;
+
+// ── mmap — map pages of memory ──────────────────────────────────────
+// Returns pointer (int64) to mapped region, or negative errno on failure.
+// addr=0 lets the kernel choose the address.
+pub func:libc_mmap = int64(int64:addr, int64:length, int64:prot, int64:flags, int64:fd, int64:offset) {
+    Result<int64>:r = sys(MMAP, addr, length, prot, flags, fd, offset);
+    int64:ptr = r ? -1i64;
+    pass(ptr);
+};
+
+// ── mmap anonymous convenience — private read/write anonymous ───────
+// Equivalent to: mmap(NULL, length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0)
+pub func:libc_mmap_anon = int64(int64:length) {
+    Result<int64>:r = sys(MMAP, 0i64, length, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:ptr = r ? -1i64;
+    pass(ptr);
+};
+
+// ── munmap — unmap pages of memory ──────────────────────────────────
+// Returns 0 on success, negative errno on failure.
+pub func:libc_munmap = int64(int64:addr, int64:length) {
+    Result<int64>:r = sys(MUNMAP, addr, length);
+    int64:val = r ? -1i64;
+    pass(val);
+};
+
+// ── mprotect — change memory protection ─────────────────────────────
+// Returns 0 on success, negative errno on failure.
+pub func:libc_mprotect = int64(int64:addr, int64:length, int64:prot) {
+    Result<int64>:r = sys(MPROTECT, addr, length, prot);
+    int64:val = r ? -1i64;
+    pass(val);
+};
+
+// ── mremap — remap a virtual memory address ─────────────────────────
+// Returns new address on success, or negative errno on failure.
+// flags: MREMAP_MAYMOVE allows the kernel to move the mapping.
+pub func:libc_mremap = int64(int64:addr, int64:old_size, int64:new_size, int64:flags) {
+    Result<int64>:r = sys(MREMAP, addr, old_size, new_size, flags);
+    int64:ptr = r ? -1i64;
+    pass(ptr);
+};

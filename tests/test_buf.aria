@@ -1,0 +1,197 @@
+// test_buf.aria — Tests for _buf.aria (buffer operations)
+
+use "../src/_buf.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq_int = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected ");
+        print(string_from_int(expected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_neq_int = NIL(int64:actual, int64:unexpected, string:msg) {
+    if (actual != unexpected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", should not be ");
+        print(string_from_int(unexpected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_eq_str = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got '");
+        print(actual);
+        print("', expected '");
+        print(expected);
+        println("')");
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+func:main = int32() {
+    println("=== aria-libc _buf tests (pure sys() buffers) ===");
+    println("");
+
+    // ── Test 1: create + capacity ──────────────────────────────────
+    println("-- create + capacity --");
+    int64:buf1 = libc_buf_create(256i64) ?! 0i64;
+    drop(assert_neq_int(buf1, 0i64, "buf_create(256) returns non-null"));
+    int64:cap1 = libc_buf_capacity(buf1) ?! 0i64;
+    drop(assert_eq_int(cap1, 256i64, "buf_capacity = 256"));
+
+    // ── Test 2: write_byte + read_byte ─────────────────────────────
+    println("-- byte read/write --");
+    drop(libc_buf_write_byte(buf1, 0i64, 65i64) ?! -1i64);    // 'A'
+    drop(libc_buf_write_byte(buf1, 1i64, 66i64) ?! -1i64);    // 'B'
+    drop(libc_buf_write_byte(buf1, 255i64, 90i64) ?! -1i64);  // 'Z'
+
+    int64:rb1 = libc_buf_read_byte(buf1, 0i64) ?! -1i64;
+    drop(assert_eq_int(rb1, 65i64, "read_byte(0) = 65 (A)"));
+    int64:rb2 = libc_buf_read_byte(buf1, 1i64) ?! -1i64;
+    drop(assert_eq_int(rb2, 66i64, "read_byte(1) = 66 (B)"));
+    int64:rb3 = libc_buf_read_byte(buf1, 255i64) ?! -1i64;
+    drop(assert_eq_int(rb3, 90i64, "read_byte(255) = 90 (Z)"));
+
+    // ── Test 3: write_int64 + read_int64 ───────────────────────────
+    println("-- int64 read/write --");
+    drop(libc_buf_write_int64(buf1, 16i64, 123456789i64) ?! -1i64);
+    int64:ri1 = libc_buf_read_int64(buf1, 16i64) ?! -1i64;
+    drop(assert_eq_int(ri1, 123456789i64, "read_int64(16) = 123456789"));
+
+    drop(libc_buf_write_int64(buf1, 24i64, 0xDEADBEEFi64) ?! -1i64);
+    int64:ri2 = libc_buf_read_int64(buf1, 24i64) ?! -1i64;
+    drop(assert_eq_int(ri2, 0xDEADBEEFi64, "read_int64(24) = 0xDEADBEEF"));
+
+    // ── Test 4: write_string + read_string ─────────────────────────
+    println("-- string read/write --");
+    drop(libc_buf_write_string(buf1, 32i64, "hello") ?! -1i64);
+    string:rs1 = libc_buf_read_string(buf1, 32i64, 5i64) ?! "";
+    drop(assert_eq_str(rs1, "hello", "read_string = 'hello'"));
+
+    // ── Test 5: buf_set — fill bytes ───────────────────────────────
+    println("-- buf_set --");
+    int64:buf2 = libc_buf_create(64i64) ?! 0i64;
+    drop(assert_neq_int(buf2, 0i64, "buf_create(64) for set test"));
+
+    drop(libc_buf_set(buf2, 0i64, 0xAAi64, 16i64) ?! -1i64);
+    int64:sb1 = libc_buf_read_byte(buf2, 0i64) ?! -1i64;
+    drop(assert_eq_int(sb1, 0xAAi64, "buf_set byte 0 = 0xAA"));
+    int64:sb2 = libc_buf_read_byte(buf2, 15i64) ?! -1i64;
+    drop(assert_eq_int(sb2, 0xAAi64, "buf_set byte 15 = 0xAA"));
+    // Bytes outside the set range should be zero (mmap-zeroed)
+    int64:sb3 = libc_buf_read_byte(buf2, 16i64) ?! -1i64;
+    drop(assert_eq_int(sb3, 0i64, "byte 16 still 0 (outside set range)"));
+
+    // ── Test 6: buf_copy — copy between buffers ────────────────────
+    println("-- buf_copy --");
+    int64:buf3 = libc_buf_create(64i64) ?! 0i64;
+    drop(assert_neq_int(buf3, 0i64, "buf_create(64) for copy dest"));
+
+    // Source buf2 has 0xAA in bytes 0-15, copy 8 bytes to buf3 offset 4
+    drop(libc_buf_copy(buf3, 4i64, buf2, 0i64, 8i64) ?! -1i64);
+    int64:cb1 = libc_buf_read_byte(buf3, 3i64) ?! -1i64;
+    drop(assert_eq_int(cb1, 0i64, "copy dest byte 3 still 0"));
+    int64:cb2 = libc_buf_read_byte(buf3, 4i64) ?! -1i64;
+    drop(assert_eq_int(cb2, 0xAAi64, "copy dest byte 4 = 0xAA"));
+    int64:cb3 = libc_buf_read_byte(buf3, 11i64) ?! -1i64;
+    drop(assert_eq_int(cb3, 0xAAi64, "copy dest byte 11 = 0xAA"));
+    int64:cb4 = libc_buf_read_byte(buf3, 12i64) ?! -1i64;
+    drop(assert_eq_int(cb4, 0i64, "copy dest byte 12 still 0"));
+
+    // ── Test 7: buf_compare ────────────────────────────────────────
+    println("-- buf_compare --");
+    // Compare buf2[0..8] with buf3[4..12] — should be equal (both 0xAA)
+    int64:cmp1 = libc_buf_compare(buf2, 0i64, buf3, 4i64, 8i64) ?! -1i64;
+    drop(assert_eq_int(cmp1, 0i64, "compare equal regions = 0"));
+
+    // Compare buf2[0..4] with buf3[0..4] — buf2 has 0xAA, buf3 has 0
+    int64:cmp2 = libc_buf_compare(buf2, 0i64, buf3, 0i64, 4i64) ?! -1i64;
+    drop(assert_neq_int(cmp2, 0i64, "compare different regions != 0"));
+
+    // ── Test 8: buf_resize ─────────────────────────────────────────
+    println("-- buf_resize --");
+    // Write sentinel to buf3
+    drop(libc_buf_write_int64(buf3, 0i64, 777i64) ?! -1i64);
+
+    int64:buf3r = libc_buf_resize(buf3, 1024i64) ?! 0i64;
+    drop(assert_neq_int(buf3r, 0i64, "buf_resize returns non-null"));
+    int64:cap3 = libc_buf_capacity(buf3r) ?! 0i64;
+    drop(assert_eq_int(cap3, 1024i64, "resized capacity = 1024"));
+
+    // Sentinel preserved
+    int64:rs_sentinel = libc_buf_read_int64(buf3r, 0i64) ?! 0i64;
+    drop(assert_eq_int(rs_sentinel, 777i64, "resize preserves data"));
+
+    // ── Test 9: resize from NULL ───────────────────────────────────
+    println("-- resize from NULL --");
+    int64:buf4 = libc_buf_resize(0i64, 128i64) ?! 0i64;
+    drop(assert_neq_int(buf4, 0i64, "buf_resize(NULL, 128) acts like create"));
+    int64:cap4 = libc_buf_capacity(buf4) ?! 0i64;
+    drop(assert_eq_int(cap4, 128i64, "resize(NULL) capacity = 128"));
+
+    // ── Test 10: read_int32 ────────────────────────────────────────
+    println("-- int32 read --");
+    // Write known bytes and read as int32
+    drop(libc_buf_write_byte(buf4, 0i64, 0x78i64) ?! -1i64);
+    drop(libc_buf_write_byte(buf4, 1i64, 0x56i64) ?! -1i64);
+    drop(libc_buf_write_byte(buf4, 2i64, 0x34i64) ?! -1i64);
+    drop(libc_buf_write_byte(buf4, 3i64, 0x12i64) ?! -1i64);
+    int64:ri32 = libc_buf_read_int32(buf4, 0i64) ?! -1i64;
+    drop(assert_eq_int(ri32, 0x12345678i64, "read_int32 little-endian = 0x12345678"));
+
+    // ── Cleanup ────────────────────────────────────────────────────
+    drop(libc_buf_release(buf1) ?! -1i64);
+    drop(libc_buf_release(buf2) ?! -1i64);
+    drop(libc_buf_release(buf3r) ?! -1i64);
+    drop(libc_buf_release(buf4) ?! -1i64);
+
+    // Summary
+    println("");
+    print("PASS: ");
+    println(string_from_int(pass_count));
+    print("FAIL: ");
+    println(string_from_int(fail_count));
+
+    if (fail_count == 0i64) {
+        println("ALL PASSED");
+    } else {
+        println("SOME FAILED");
+    }
+
+    exit(0);
+};

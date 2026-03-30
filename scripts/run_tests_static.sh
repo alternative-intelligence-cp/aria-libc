@@ -48,6 +48,10 @@ declare -a ALL_TESTS=(
     "fs_link:tests/test_fs_link.aria:-laria_libc_mem"
     "fs_dir:tests/test_fs_dir.aria:"
     "fs_readdir:tests/test_fs_readdir.aria:-laria_libc_mem"
+    # v0.2.3: Pure Aria sys() memory management
+    "mmap:tests/test_mmap.aria:-laria_libc_mem"
+    "alloc:tests/test_alloc.aria:-laria_libc_mem"
+    "buf:tests/test_buf.aria:-laria_libc_mem"
 )
 
 # ── Filter tests if args provided ───────────────────────────────────

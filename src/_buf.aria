@@ -1,0 +1,168 @@
+// _buf.aria — Pure Aria buffer operations via sys(MMAP)
+// No libc dependency for allocation. Uses extern helpers for byte access.
+//
+// Port status:
+//   libc_buf_create, libc_buf_release — PURE sys() (MMAP/MUNMAP)
+//   libc_buf_resize — PURE sys() (MREMAP)
+//   libc_buf_read_byte/write_byte — extern byte access
+//   libc_buf_read_int32/write_int32 — extern byte access
+//   libc_buf_read_int64/write_int64 — extern byte access
+//   libc_buf_copy, libc_buf_set, libc_buf_compare — byte loops
+//   libc_buf_read_string/write_string — extern string bridge
+//
+// Handle layout (mmap'd region):
+//   offset  0: int64 total_mmap_size  (includes header)
+//   offset  8: int64 capacity         (usable bytes after header)
+//   offset 16: [buffer data ...]
+//
+// All user offsets are relative to the data area (offset 16).
+// e.g., libc_buf_read_byte(buf, 0) reads the first data byte.
+//
+// Usage:
+//   use "../src/_buf.aria".*;
+//
+// Example:
+//   int64:buf = libc_buf_create(256i64);
+//   drop(libc_buf_write_byte(buf, 0i64, 65i64));  // write 'A'
+//   int64:val = libc_buf_read_byte(buf, 0i64);     // read back
+//   drop(libc_buf_release(buf));
+
+use "_constants.aria".*;
+
+// ── Extern helpers ──────────────────────────────────────────────────
+extern func:aria_libc_mem_read_byte = int64(int64:ptr, int64:offset);
+extern func:aria_libc_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
+extern func:aria_libc_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_libc_mem_read_int32 = int64(int64:ptr, int64:offset);
+extern func:aria_libc_mem_read_string = string(int64:ptr, int64:max_len);
+extern func:aria_libc_mem_write_string = int64(int64:ptr, string:s);
+
+// ── Internal constants ──────────────────────────────────────────────
+int64:_BUF_HDR = 16i64;  // 16-byte header
+
+// ── libc_buf_create — allocate a buffer via mmap ────────────────────
+// Returns handle (pointer to mmap'd region), or 0 on failure.
+pub func:libc_buf_create = int64(int64:capacity) {
+    int64:total = capacity + _BUF_HDR;
+    Result<int64>:r = sys(MMAP, 0i64, total, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:base = r ? 0i64;
+    if (base == 0i64) {
+        pass(0i64);
+    }
+    drop(aria_libc_mem_write_int64(base, 0i64, total));
+    drop(aria_libc_mem_write_int64(base, 8i64, capacity));
+    pass(base);
+};
+
+// ── libc_buf_release — free a buffer via munmap ─────────────────────
+pub func:libc_buf_release = int64(int64:handle) {
+    if (handle == 0i64) {
+        pass(0i64);
+    }
+    int64:total = aria_libc_mem_read_int64(handle, 0i64);
+    Result<int64>:r = sys(MUNMAP, handle, total);
+    int64:val = r ? -1i64;
+    pass(val);
+};
+
+// ── libc_buf_capacity — get usable capacity ─────────────────────────
+pub func:libc_buf_capacity = int64(int64:handle) {
+    int64:cap = aria_libc_mem_read_int64(handle, 8i64);
+    pass(cap);
+};
+
+// ── libc_buf_resize — resize buffer via mremap ──────────────────────
+// Returns new handle (old handle becomes invalid), or 0 on failure.
+pub func:libc_buf_resize = int64(int64:handle, int64:new_capacity) {
+    if (handle == 0i64) {
+        int64:fresh = libc_buf_create(new_capacity) ?! 0i64;
+        pass(fresh);
+    }
+    int64:old_total = aria_libc_mem_read_int64(handle, 0i64);
+    int64:new_total = new_capacity + _BUF_HDR;
+    Result<int64>:r = sys(MREMAP, handle, old_total, new_total, MREMAP_MAYMOVE);
+    int64:new_base = r ? 0i64;
+    if (new_base == 0i64) {
+        pass(0i64);
+    }
+    drop(aria_libc_mem_write_int64(new_base, 0i64, new_total));
+    drop(aria_libc_mem_write_int64(new_base, 8i64, new_capacity));
+    pass(new_base);
+};
+
+// ── Byte-level access ───────────────────────────────────────────────
+
+pub func:libc_buf_read_byte = int64(int64:handle, int64:offset) {
+    int64:val = aria_libc_mem_read_byte(handle, offset + _BUF_HDR);
+    pass(val);
+};
+
+pub func:libc_buf_write_byte = int64(int64:handle, int64:offset, int64:val) {
+    int64:result = aria_libc_mem_write_byte(handle, offset + _BUF_HDR, val);
+    pass(result);
+};
+
+// ── 32-bit access ───────────────────────────────────────────────────
+
+pub func:libc_buf_read_int32 = int64(int64:handle, int64:offset) {
+    int64:val = aria_libc_mem_read_int32(handle, offset + _BUF_HDR);
+    pass(val);
+};
+
+// ── 64-bit access ───────────────────────────────────────────────────
+
+pub func:libc_buf_read_int64 = int64(int64:handle, int64:offset) {
+    int64:val = aria_libc_mem_read_int64(handle, offset + _BUF_HDR);
+    pass(val);
+};
+
+pub func:libc_buf_write_int64 = int64(int64:handle, int64:offset, int64:val) {
+    int64:result = aria_libc_mem_write_int64(handle, offset + _BUF_HDR, val);
+    pass(result);
+};
+
+// ── String bridge ───────────────────────────────────────────────────
+
+pub func:libc_buf_read_string = string(int64:handle, int64:offset, int64:max_len) {
+    string:s = aria_libc_mem_read_string(handle + _BUF_HDR + offset, max_len);
+    pass(s);
+};
+
+pub func:libc_buf_write_string = int64(int64:handle, int64:offset, string:s) {
+    int64:result = aria_libc_mem_write_string(handle + _BUF_HDR + offset, s);
+    pass(result);
+};
+
+// ── Bulk operations ─────────────────────────────────────────────────
+
+// libc_buf_set — fill n bytes starting at offset with val
+pub func:libc_buf_set = int64(int64:handle, int64:offset, int64:val, int64:n) {
+    int64:i = 0i64;
+    loop(0, n, 1) {
+        drop(aria_libc_mem_write_byte(handle, offset + $ + _BUF_HDR, val));
+    }
+    pass(0i64);
+};
+
+// libc_buf_copy — copy n bytes from src_buf+src_off to dst_buf+dst_off
+pub func:libc_buf_copy = int64(int64:dst, int64:dst_off, int64:src, int64:src_off, int64:n) {
+    loop(0, n, 1) {
+        int64:byte = aria_libc_mem_read_byte(src, src_off + $ + _BUF_HDR);
+        drop(aria_libc_mem_write_byte(dst, dst_off + $ + _BUF_HDR, byte));
+    }
+    pass(0i64);
+};
+
+// libc_buf_compare — compare n bytes between two buffers
+// Returns 0 if equal, positive/negative on first difference.
+pub func:libc_buf_compare = int64(int64:a, int64:a_off, int64:b, int64:b_off, int64:n) {
+    loop(0, n, 1) {
+        int64:va = aria_libc_mem_read_byte(a, a_off + $ + _BUF_HDR);
+        int64:vb = aria_libc_mem_read_byte(b, b_off + $ + _BUF_HDR);
+        if (va != vb) {
+            pass(va - vb);
+        }
+    }
+    pass(0i64);
+};

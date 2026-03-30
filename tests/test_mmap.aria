@@ -1,0 +1,172 @@
+// test_mmap.aria — Tests for _mmap.aria (mmap/munmap/mprotect/mremap)
+
+use "../src/_mmap.aria".*;
+use "../src/_constants.aria".*;
+
+// ── Extern helpers for verifying memory contents ────────────────────
+extern func:aria_libc_mem_read_byte = int64(int64:ptr, int64:offset);
+extern func:aria_libc_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
+extern func:aria_libc_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq_int = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected ");
+        print(string_from_int(expected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_neq_int = NIL(int64:actual, int64:unexpected, string:msg) {
+    if (actual != unexpected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", should not be ");
+        print(string_from_int(unexpected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_gt = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual > threshold) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected > ");
+        print(string_from_int(threshold));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+func:main = int32() {
+    println("=== aria-libc _mmap tests (pure sys()) ===");
+    println("");
+
+    // ── Test 1: mmap_anon basic ────────────────────────────────────
+    println("-- mmap_anon --");
+    int64:ptr1 = libc_mmap_anon(4096i64) ?! 0i64;
+    drop(assert_neq_int(ptr1, 0i64, "mmap_anon returns non-null"));
+
+    // mmap returns zeroed memory
+    int64:byte0 = aria_libc_mem_read_byte(ptr1, 0i64);
+    drop(assert_eq_int(byte0, 0i64, "mmap memory is zero-filled (byte 0)"));
+    int64:byte100 = aria_libc_mem_read_byte(ptr1, 100i64);
+    drop(assert_eq_int(byte100, 0i64, "mmap memory is zero-filled (byte 100)"));
+
+    // ── Test 2: write + read back ──────────────────────────────────
+    println("-- write + read --");
+    drop(aria_libc_mem_write_byte(ptr1, 0i64, 42i64));
+    int64:rb1 = aria_libc_mem_read_byte(ptr1, 0i64);
+    drop(assert_eq_int(rb1, 42i64, "write byte 42, read back 42"));
+
+    drop(aria_libc_mem_write_int64(ptr1, 8i64, 123456789i64));
+    int64:ri1 = aria_libc_mem_read_int64(ptr1, 8i64);
+    drop(assert_eq_int(ri1, 123456789i64, "write int64, read back correctly"));
+
+    // ── Test 3: munmap ─────────────────────────────────────────────
+    println("-- munmap --");
+    int64:unmap1 = libc_munmap(ptr1, 4096i64) ?! -1i64;
+    drop(assert_eq_int(unmap1, 0i64, "munmap returns 0 on success"));
+
+    // ── Test 4: mmap with explicit flags ───────────────────────────
+    println("-- mmap explicit flags --");
+    int64:ptr2 = libc_mmap(0i64, 8192i64, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64) ?! 0i64;
+    drop(assert_neq_int(ptr2, 0i64, "mmap explicit returns valid pointer"));
+
+    // Write at beginning and end of region
+    drop(aria_libc_mem_write_byte(ptr2, 0i64, 0xAAi64));
+    drop(aria_libc_mem_write_byte(ptr2, 8191i64, 0xBBi64));
+    int64:rb2 = aria_libc_mem_read_byte(ptr2, 0i64);
+    drop(assert_eq_int(rb2, 0xAAi64, "write 0xAA at start of 8KB region"));
+    int64:rb3 = aria_libc_mem_read_byte(ptr2, 8191i64);
+    drop(assert_eq_int(rb3, 0xBBi64, "write 0xBB at end of 8KB region"));
+
+    // ── Test 5: mremap — grow a mapping ────────────────────────────
+    println("-- mremap --");
+    // Write sentinel before remap
+    drop(aria_libc_mem_write_int64(ptr2, 0i64, 99887766i64));
+
+    int64:ptr3 = libc_mremap(ptr2, 8192i64, 16384i64, MREMAP_MAYMOVE) ?! 0i64;
+    drop(assert_neq_int(ptr3, 0i64, "mremap returns non-null"));
+
+    // Sentinel data preserved after remap
+    int64:sentinel = aria_libc_mem_read_int64(ptr3, 0i64);
+    drop(assert_eq_int(sentinel, 99887766i64, "mremap preserves data"));
+
+    // New region is accessible
+    drop(aria_libc_mem_write_byte(ptr3, 16383i64, 0xCCi64));
+    int64:rb4 = aria_libc_mem_read_byte(ptr3, 16383i64);
+    drop(assert_eq_int(rb4, 0xCCi64, "mremap new region is writable"));
+
+    // ── Test 6: mprotect ───────────────────────────────────────────
+    println("-- mprotect --");
+    // Protect to read-only — just verify the call succeeds
+    int64:prot1 = libc_mprotect(ptr3, 16384i64, PROT_READ) ?! -1i64;
+    drop(assert_eq_int(prot1, 0i64, "mprotect read-only returns 0"));
+
+    // Restore read-write for cleanup
+    int64:prot2 = libc_mprotect(ptr3, 16384i64, PROT_RW) ?! -1i64;
+    drop(assert_eq_int(prot2, 0i64, "mprotect read-write returns 0"));
+
+    // ── Test 7: large allocation ───────────────────────────────────
+    println("-- large allocation --");
+    int64:big_size = 1048576i64;  // 1 MB
+    int64:ptr4 = libc_mmap_anon(big_size) ?! 0i64;
+    drop(assert_neq_int(ptr4, 0i64, "1MB mmap_anon succeeds"));
+
+    // Write at 1MB boundary
+    drop(aria_libc_mem_write_byte(ptr4, 1048575i64, 0xFFi64));
+    int64:rb5 = aria_libc_mem_read_byte(ptr4, 1048575i64);
+    drop(assert_eq_int(rb5, 0xFFi64, "write at end of 1MB region"));
+
+    // ── Cleanup ────────────────────────────────────────────────────
+    drop(libc_munmap(ptr3, 16384i64) ?! -1i64);
+    drop(libc_munmap(ptr4, big_size) ?! -1i64);
+
+    // Summary
+    println("");
+    print("PASS: ");
+    println(string_from_int(pass_count));
+    print("FAIL: ");
+    println(string_from_int(fail_count));
+
+    if (fail_count == 0i64) {
+        println("ALL PASSED");
+    } else {
+        println("SOME FAILED");
+    }
+
+    exit(0);
+};

@@ -1,0 +1,120 @@
+// _alloc.aria — Pure Aria memory allocator via sys(MMAP)
+// No libc malloc/free dependency. Calls kernel directly.
+//
+// Port status:
+//   libc_malloc, libc_release, libc_calloc — PURE sys()
+//   libc_realloc — PURE sys() (via MREMAP)
+//   libc_alloc_size — reads header (extern byte access)
+//
+// Design:
+//   Each allocation is a standalone mmap region with a 16-byte header:
+//     offset  0: int64 total_mmap_size  (includes header)
+//     offset  8: int64 user_size        (what the caller requested)
+//     offset 16: [user data ...]
+//
+//   libc_malloc(size) → mmap(size+16) → write header → return ptr+16
+//   libc_release(ptr) → read header at ptr-16 → munmap
+//   libc_realloc(ptr, new_size) → mremap the whole region → update header
+//   libc_calloc(count, size) → libc_malloc(count*size), mmap is zero-filled
+//
+// Advantages:
+//   - No global state, no free list, no fragmentation
+//   - Every allocation is page-aligned (mmap guarantee)
+//   - Memory returned to OS immediately on release
+//   - Zero-filled by kernel (no explicit memset for calloc)
+//
+// Trade-offs:
+//   - Each alloc/release is a syscall (fine for coarse allocations)
+//   - Minimum granularity is one page (4KB) — small allocs waste space
+//   - Use libc_buf_create (from _buf.aria) for fine-grained sub-allocations
+//
+// Usage:
+//   use "../src/_alloc.aria".*;
+//
+// Example:
+//   int64:ptr = libc_malloc(1024i64);
+//   // ... use memory at ptr ...
+//   drop(libc_release(ptr));
+
+use "_constants.aria".*;
+
+// ── Extern helpers for header read/write ────────────────────────────
+// We need byte-level access to write/read the 16-byte header.
+// These are the same helpers used by _fs_readdir and _stat.
+extern func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
+extern func:aria_libc_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
+
+// ── Internal constants ──────────────────────────────────────────────
+int64:_ALLOC_HDR = 16i64;  // 16-byte header before user data
+
+// ── libc_malloc — allocate memory via mmap ──────────────────────────
+// Returns pointer to usable memory (after header), or 0 on failure.
+pub func:libc_malloc = int64(int64:size) {
+    int64:total = size + _ALLOC_HDR;
+    Result<int64>:r = sys(MMAP, 0i64, total, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:base = r ? 0i64;
+    if (base == 0i64) {
+        pass(0i64);
+    }
+    // Write header
+    drop(aria_libc_mem_write_int64(base, 0i64, total));
+    drop(aria_libc_mem_write_int64(base, 8i64, size));
+    // Return pointer past header
+    pass(base + _ALLOC_HDR);
+};
+
+// ── libc_release — free memory via munmap ───────────────────────────
+// Returns 0 on success, -1 on failure.
+pub func:libc_release = int64(int64:ptr) {
+    if (ptr == 0i64) {
+        pass(0i64);
+    }
+    int64:base = ptr - _ALLOC_HDR;
+    int64:total = aria_libc_mem_read_int64(base, 0i64);
+    Result<int64>:r = sys(MUNMAP, base, total);
+    int64:val = r ? -1i64;
+    pass(val);
+};
+
+// ── libc_realloc — resize allocation via mremap ─────────────────────
+// Returns new pointer to usable memory, or 0 on failure.
+// The old pointer becomes invalid after this call.
+pub func:libc_realloc = int64(int64:ptr, int64:new_size) {
+    // realloc(NULL, size) == malloc(size)
+    if (ptr == 0i64) {
+        int64:fresh = libc_malloc(new_size) ?! 0i64;
+        pass(fresh);
+    }
+    int64:base = ptr - _ALLOC_HDR;
+    int64:old_total = aria_libc_mem_read_int64(base, 0i64);
+    int64:new_total = new_size + _ALLOC_HDR;
+    Result<int64>:r = sys(MREMAP, base, old_total, new_total, MREMAP_MAYMOVE);
+    int64:new_base = r ? 0i64;
+    if (new_base == 0i64) {
+        pass(0i64);
+    }
+    // Update header at new location
+    drop(aria_libc_mem_write_int64(new_base, 0i64, new_total));
+    drop(aria_libc_mem_write_int64(new_base, 8i64, new_size));
+    pass(new_base + _ALLOC_HDR);
+};
+
+// ── libc_calloc — allocate zero-filled memory ───────────────────────
+// Returns pointer to usable memory, or 0 on failure.
+// mmap already returns zero-filled pages, so no extra work needed.
+pub func:libc_calloc = int64(int64:count, int64:size) {
+    int64:total_user = count * size;
+    int64:ptr = libc_malloc(total_user) ?! 0i64;
+    pass(ptr);
+};
+
+// ── libc_alloc_size — query the user-requested size of an allocation ─
+// Returns the size originally passed to libc_malloc/libc_calloc.
+pub func:libc_alloc_size = int64(int64:ptr) {
+    if (ptr == 0i64) {
+        pass(0i64);
+    }
+    int64:base = ptr - _ALLOC_HDR;
+    int64:user_size = aria_libc_mem_read_int64(base, 8i64);
+    pass(user_size);
+};

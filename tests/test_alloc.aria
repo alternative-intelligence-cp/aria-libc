@@ -1,0 +1,208 @@
+// test_alloc.aria — Tests for _alloc.aria (malloc/release/realloc/calloc)
+
+use "../src/_alloc.aria".*;
+
+// ── Extern helpers for verifying memory contents ────────────────────
+extern func:aria_libc_mem_read_byte = int64(int64:ptr, int64:offset);
+extern func:aria_libc_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
+extern func:aria_libc_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq_int = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected ");
+        print(string_from_int(expected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_neq_int = NIL(int64:actual, int64:unexpected, string:msg) {
+    if (actual != unexpected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", should not be ");
+        print(string_from_int(unexpected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_gt = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual > threshold) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected > ");
+        print(string_from_int(threshold));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+func:main = int32() {
+    println("=== aria-libc _alloc tests (pure sys() allocator) ===");
+    println("");
+
+    // ── Test 1: malloc basic ───────────────────────────────────────
+    println("-- malloc --");
+    int64:p1 = libc_malloc(256i64) ?! 0i64;
+    drop(assert_neq_int(p1, 0i64, "malloc(256) returns non-null"));
+
+    // Memory should be zero-filled (mmap guarantee)
+    int64:b0 = aria_libc_mem_read_byte(p1, 0i64);
+    drop(assert_eq_int(b0, 0i64, "malloc memory is zero-filled (byte 0)"));
+    int64:b100 = aria_libc_mem_read_byte(p1, 100i64);
+    drop(assert_eq_int(b100, 0i64, "malloc memory is zero-filled (byte 100)"));
+
+    // Write + read back
+    drop(aria_libc_mem_write_byte(p1, 0i64, 65i64));   // 'A'
+    drop(aria_libc_mem_write_byte(p1, 1i64, 66i64));   // 'B'
+    drop(aria_libc_mem_write_byte(p1, 255i64, 90i64)); // 'Z'
+    int64:rb1 = aria_libc_mem_read_byte(p1, 0i64);
+    drop(assert_eq_int(rb1, 65i64, "write byte 65 at offset 0"));
+    int64:rb2 = aria_libc_mem_read_byte(p1, 1i64);
+    drop(assert_eq_int(rb2, 66i64, "write byte 66 at offset 1"));
+    int64:rb3 = aria_libc_mem_read_byte(p1, 255i64);
+    drop(assert_eq_int(rb3, 90i64, "write byte 90 at offset 255"));
+
+    // ── Test 2: alloc_size ─────────────────────────────────────────
+    println("-- alloc_size --");
+    int64:sz1 = libc_alloc_size(p1) ?! 0i64;
+    drop(assert_eq_int(sz1, 256i64, "alloc_size returns 256 for malloc(256)"));
+
+    // ── Test 3: release ────────────────────────────────────────────
+    println("-- release --");
+    int64:rel1 = libc_release(p1) ?! -1i64;
+    drop(assert_eq_int(rel1, 0i64, "release returns 0 on success"));
+
+    // Release of NULL is safe
+    int64:rel2 = libc_release(0i64) ?! -1i64;
+    drop(assert_eq_int(rel2, 0i64, "release(0) is safe no-op"));
+
+    // ── Test 4: calloc ─────────────────────────────────────────────
+    println("-- calloc --");
+    int64:p2 = libc_calloc(10i64, 64i64) ?! 0i64;  // 640 bytes
+    drop(assert_neq_int(p2, 0i64, "calloc(10, 64) returns non-null"));
+
+    // calloc is zero-filled
+    int64:cb0 = aria_libc_mem_read_byte(p2, 0i64);
+    drop(assert_eq_int(cb0, 0i64, "calloc memory is zero (byte 0)"));
+    int64:cb639 = aria_libc_mem_read_byte(p2, 639i64);
+    drop(assert_eq_int(cb639, 0i64, "calloc memory is zero (byte 639)"));
+
+    int64:csz = libc_alloc_size(p2) ?! 0i64;
+    drop(assert_eq_int(csz, 640i64, "calloc alloc_size = 640"));
+
+    drop(libc_release(p2) ?! -1i64);
+
+    // ── Test 5: realloc ────────────────────────────────────────────
+    println("-- realloc --");
+    int64:p3 = libc_malloc(128i64) ?! 0i64;
+    drop(assert_neq_int(p3, 0i64, "malloc(128) for realloc test"));
+
+    // Write sentinel data
+    drop(aria_libc_mem_write_int64(p3, 0i64, 0xDEADBEEFi64));
+    drop(aria_libc_mem_write_int64(p3, 8i64, 42i64));
+
+    // Realloc to larger
+    int64:p4 = libc_realloc(p3, 4096i64) ?! 0i64;
+    drop(assert_neq_int(p4, 0i64, "realloc(128 -> 4096) returns non-null"));
+
+    // Sentinel data preserved
+    int64:s1 = aria_libc_mem_read_int64(p4, 0i64);
+    drop(assert_eq_int(s1, 0xDEADBEEFi64, "realloc preserves data (sentinel 1)"));
+    int64:s2 = aria_libc_mem_read_int64(p4, 8i64);
+    drop(assert_eq_int(s2, 42i64, "realloc preserves data (sentinel 2)"));
+
+    int64:rsz = libc_alloc_size(p4) ?! 0i64;
+    drop(assert_eq_int(rsz, 4096i64, "realloc alloc_size = 4096"));
+
+    drop(libc_release(p4) ?! -1i64);
+
+    // ── Test 6: realloc from NULL ──────────────────────────────────
+    println("-- realloc from NULL --");
+    int64:p5 = libc_realloc(0i64, 512i64) ?! 0i64;
+    drop(assert_neq_int(p5, 0i64, "realloc(NULL, 512) acts like malloc"));
+    int64:rsz2 = libc_alloc_size(p5) ?! 0i64;
+    drop(assert_eq_int(rsz2, 512i64, "realloc(NULL) alloc_size = 512"));
+    drop(libc_release(p5) ?! -1i64);
+
+    // ── Test 7: large allocation ───────────────────────────────────
+    println("-- large allocation --");
+    int64:big = libc_malloc(1048576i64) ?! 0i64;  // 1 MB
+    drop(assert_neq_int(big, 0i64, "malloc(1MB) succeeds"));
+
+    // Write at boundaries
+    drop(aria_libc_mem_write_byte(big, 0i64, 0xAAi64));
+    drop(aria_libc_mem_write_byte(big, 1048575i64, 0xBBi64));
+    int64:bfirst = aria_libc_mem_read_byte(big, 0i64);
+    drop(assert_eq_int(bfirst, 0xAAi64, "1MB write at start"));
+    int64:blast = aria_libc_mem_read_byte(big, 1048575i64);
+    drop(assert_eq_int(blast, 0xBBi64, "1MB write at end"));
+
+    drop(libc_release(big) ?! -1i64);
+
+    // ── Test 8: multiple allocations ───────────────────────────────
+    println("-- multiple allocations --");
+    int64:m1 = libc_malloc(100i64) ?! 0i64;
+    int64:m2 = libc_malloc(200i64) ?! 0i64;
+    int64:m3 = libc_malloc(300i64) ?! 0i64;
+    drop(assert_neq_int(m1, 0i64, "multi alloc #1 non-null"));
+    drop(assert_neq_int(m2, 0i64, "multi alloc #2 non-null"));
+    drop(assert_neq_int(m3, 0i64, "multi alloc #3 non-null"));
+
+    // Each allocation is independent (different pointers)
+    drop(assert_neq_int(m1, m2, "alloc #1 != alloc #2"));
+    drop(assert_neq_int(m2, m3, "alloc #2 != alloc #3"));
+    drop(assert_neq_int(m1, m3, "alloc #1 != alloc #3"));
+
+    // Release in any order
+    drop(libc_release(m2) ?! -1i64);
+    drop(libc_release(m1) ?! -1i64);
+    drop(libc_release(m3) ?! -1i64);
+
+    // Summary
+    println("");
+    print("PASS: ");
+    println(string_from_int(pass_count));
+    print("FAIL: ");
+    println(string_from_int(fail_count));
+
+    if (fail_count == 0i64) {
+        println("ALL PASSED");
+    } else {
+        println("SOME FAILED");
+    }
+
+    exit(0);
+};
