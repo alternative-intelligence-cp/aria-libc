@@ -1,0 +1,156 @@
+// test_fs_link.aria — Tests for _fs_link.aria (symlink/readlink/chmod/access)
+
+use "../src/_fs_link.aria".*;
+use "../src/_constants.aria".*;
+use "../src/_io_core.aria".*;
+use "../src/_stat.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq_int = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected ");
+        print(string_from_int(expected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got '");
+        print(actual);
+        print("', expected '");
+        print(expected);
+        println("')");
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+func:main = int32() {
+    println("=== aria-libc _fs_link tests (pure sys()) ===");
+    println("");
+
+    // ── Setup: create a test file ──────────────────────────────────
+    // Clean up from previous runs
+    drop(sys(UNLINK, "/tmp/aria_fslink_test.txt"));
+    drop(sys(UNLINK, "/tmp/aria_fslink_sym.txt"));
+    drop(sys(UNLINK, "/tmp/aria_fslink_hard.txt"));
+
+    int64:w1 = libc_write_file("/tmp/aria_fslink_test.txt", "link test") ?! -1i64;
+
+    // ── Test 1: symlink + readlink ─────────────────────────────────
+    println("-- symlink + readlink --");
+    int64:s1 = libc_symlink("/tmp/aria_fslink_test.txt", "/tmp/aria_fslink_sym.txt") ?! -1i64;
+    drop(assert_eq_int(s1, 0i64, "symlink returns 0 on success"));
+
+    string:target = libc_readlink("/tmp/aria_fslink_sym.txt") ?! "";
+    drop(assert_str_eq(target, "/tmp/aria_fslink_test.txt", "readlink returns correct target"));
+
+    // Read through symlink
+    string:content = libc_read_file("/tmp/aria_fslink_sym.txt") ?! "";
+    drop(assert_str_eq(content, "link test", "read through symlink works"));
+
+    // symlink to existing target should fail
+    int64:s2 = libc_symlink("/tmp/aria_fslink_test.txt", "/tmp/aria_fslink_sym.txt") ?! -1i64;
+    drop(assert_eq_int(s2, -1i64, "symlink existing returns -1"));
+
+    // readlink on non-symlink should fail
+    string:bad_rl = libc_readlink("/tmp/aria_fslink_test.txt") ?! "";
+    drop(assert_str_eq(bad_rl, "", "readlink on regular file returns empty"));
+
+    // ── Test 2: hardlink ───────────────────────────────────────────
+    println("-- hardlink --");
+    int64:h1 = libc_hardlink("/tmp/aria_fslink_test.txt", "/tmp/aria_fslink_hard.txt") ?! -1i64;
+    drop(assert_eq_int(h1, 0i64, "hardlink returns 0 on success"));
+
+    // Read through hardlink
+    string:hcontent = libc_read_file("/tmp/aria_fslink_hard.txt") ?! "";
+    drop(assert_str_eq(hcontent, "link test", "read through hardlink works"));
+
+    // Both should have same inode (check nlink >= 2)
+    int64:nlink = libc_stat_nlink("/tmp/aria_fslink_test.txt") ?! -1i64;
+    if (nlink >= 2i64) {
+        pass_count = pass_count + 1i64;
+        println("  PASS: nlink >= 2 after hardlink");
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: nlink should be >= 2, got ");
+        println(string_from_int(nlink));
+    }
+
+    // ── Test 3: chmod ──────────────────────────────────────────────
+    println("-- chmod --");
+    int64:ch1 = libc_chmod("/tmp/aria_fslink_test.txt", MODE_600) ?! -1i64;
+    drop(assert_eq_int(ch1, 0i64, "chmod returns 0 on success"));
+
+    // Verify mode changed via stat
+    int64:mode = libc_stat_mode("/tmp/aria_fslink_test.txt") ?! -1i64;
+    // stat mode includes file type bits; mask with 0777 (511) to get permission bits
+    int64:perms = mode - ((mode / 512i64) * 512i64);
+    drop(assert_eq_int(perms, MODE_600, "chmod changed permissions to 600"));
+
+    // chmod nonexistent should fail
+    int64:ch2 = libc_chmod("/tmp/aria_fslink_nonexistent.txt", MODE_644) ?! -1i64;
+    drop(assert_eq_int(ch2, -1i64, "chmod nonexistent returns -1"));
+
+    // ── Test 4: chown (error case only — need root for success) ────
+    println("-- chown --");
+    int64:co1 = libc_chown("/tmp/aria_fslink_nonexistent.txt", 0i64, 0i64) ?! -1i64;
+    drop(assert_eq_int(co1, -1i64, "chown nonexistent returns -1"));
+
+    // ── Test 5: access ─────────────────────────────────────────────
+    println("-- access --");
+    // Restore normal perms so access checks work
+    drop(libc_chmod("/tmp/aria_fslink_test.txt", MODE_644) ?! -1i64);
+
+    int64:a1 = libc_access("/tmp/aria_fslink_test.txt", F_OK) ?! -1i64;
+    drop(assert_eq_int(a1, 0i64, "access F_OK on existing file returns 0"));
+
+    int64:a2 = libc_access("/tmp/aria_fslink_test.txt", R_OK) ?! -1i64;
+    drop(assert_eq_int(a2, 0i64, "access R_OK on readable file returns 0"));
+
+    int64:a3 = libc_access("/tmp/aria_fslink_nonexistent.txt", F_OK) ?! -1i64;
+    drop(assert_eq_int(a3, -1i64, "access F_OK on nonexistent returns -1"));
+
+    // ── Cleanup ────────────────────────────────────────────────────
+    drop(sys(UNLINK, "/tmp/aria_fslink_test.txt"));
+    drop(sys(UNLINK, "/tmp/aria_fslink_sym.txt"));
+    drop(sys(UNLINK, "/tmp/aria_fslink_hard.txt"));
+
+    // Summary
+    println("");
+    print("PASS: ");
+    println(string_from_int(pass_count));
+    print("FAIL: ");
+    println(string_from_int(fail_count));
+
+    if (fail_count == 0i64) {
+        println("ALL PASSED");
+    } else {
+        println("SOME FAILED");
+    }
+
+    exit(0);
+};

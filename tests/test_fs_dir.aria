@@ -1,0 +1,145 @@
+// test_fs_dir.aria — Tests for _fs_dir.aria (getcwd/chdir)
+
+use "../src/_fs_dir.aria".*;
+use "../src/_fs_core.aria".*;
+use "../src/_constants.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq_int = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected ");
+        print(string_from_int(expected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got '");
+        print(actual);
+        print("', expected '");
+        print(expected);
+        println("')");
+    }
+    pass(NIL);
+};
+
+func:assert_str_neq = NIL(string:actual, string:unexpected, string:msg) {
+    if (actual != unexpected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got '");
+        print(actual);
+        print("', should not be '");
+        print(unexpected);
+        println("')");
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+func:main = int32() {
+    println("=== aria-libc _fs_dir tests (pure sys()) ===");
+    println("");
+
+    // ── Test 1: getcwd returns non-empty string ────────────────────
+    println("-- getcwd --");
+    string:cwd = libc_getcwd() ?! "";
+    drop(assert_str_neq(cwd, "", "getcwd returns non-empty string"));
+
+    // cwd should start with /
+    // We can't use string slicing, but we can check it's a reasonable path
+    int64:cwd_len = string_length(cwd);
+    if (cwd_len > 0i64) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: getcwd length > 0 (");
+        print(cwd);
+        println(")");
+    } else {
+        fail_count = fail_count + 1i64;
+        println("  FAIL: getcwd returned zero-length string");
+    }
+
+    // ── Test 2: chdir to /tmp and verify ───────────────────────────
+    println("-- chdir --");
+    int64:cd1 = libc_chdir("/tmp") ?! -1i64;
+    drop(assert_eq_int(cd1, 0i64, "chdir to /tmp returns 0"));
+
+    string:new_cwd = libc_getcwd() ?! "";
+    drop(assert_str_eq(new_cwd, "/tmp", "getcwd after chdir returns /tmp"));
+
+    // ── Test 3: chdir to nonexistent dir ───────────────────────────
+    int64:cd2 = libc_chdir("/tmp/aria_fsdir_nonexistent") ?! -1i64;
+    drop(assert_eq_int(cd2, -1i64, "chdir to nonexistent returns -1"));
+
+    // ── Test 4: chdir + mkdir + chdir into new dir ─────────────────
+    println("-- mkdir + chdir round-trip --");
+    // Clean up from previous runs
+    drop(libc_rmdir("/tmp/aria_fsdir_subdir") ?! -1i64);
+
+    int64:mk1 = libc_mkdir("/tmp/aria_fsdir_subdir", MODE_755) ?! -1i64;
+    drop(assert_eq_int(mk1, 0i64, "mkdir test subdir"));
+
+    int64:cd3 = libc_chdir("/tmp/aria_fsdir_subdir") ?! -1i64;
+    drop(assert_eq_int(cd3, 0i64, "chdir into new subdir"));
+
+    string:sub_cwd = libc_getcwd() ?! "";
+    drop(assert_str_eq(sub_cwd, "/tmp/aria_fsdir_subdir", "getcwd in subdir correct"));
+
+    // chdir back to /tmp so we can remove the subdir
+    int64:cd4 = libc_chdir("/tmp") ?! -1i64;
+    drop(assert_eq_int(cd4, 0i64, "chdir back to /tmp"));
+
+    // ── Test 5: chdir back to original cwd ─────────────────────────
+    println("-- restore cwd --");
+    int64:cd5 = libc_chdir(cwd) ?! -1i64;
+    drop(assert_eq_int(cd5, 0i64, "chdir back to original cwd"));
+
+    string:restored = libc_getcwd() ?! "";
+    drop(assert_str_eq(restored, cwd, "restored cwd matches original"));
+
+    // ── Cleanup ────────────────────────────────────────────────────
+    drop(libc_rmdir("/tmp/aria_fsdir_subdir") ?! -1i64);
+
+    // Summary
+    println("");
+    print("PASS: ");
+    println(string_from_int(pass_count));
+    print("FAIL: ");
+    println(string_from_int(fail_count));
+
+    if (fail_count == 0i64) {
+        println("ALL PASSED");
+    } else {
+        println("SOME FAILED");
+    }
+
+    exit(0);
+};

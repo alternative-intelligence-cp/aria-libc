@@ -1,0 +1,245 @@
+// test_fs_readdir.aria — Tests for _fs_readdir.aria (GETDENTS64-based readdir)
+
+use "../src/_fs_readdir.aria".*;
+use "../src/_fs_core.aria".*;
+use "../src/_io_core.aria".*;
+use "../src/_constants.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq_int = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected ");
+        print(string_from_int(expected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_gt = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual > threshold) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected > ");
+        print(string_from_int(threshold));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got '");
+        print(actual);
+        print("', expected '");
+        print(expected);
+        println("')");
+    }
+    pass(NIL);
+};
+
+func:assert_str_neq = NIL(string:actual, string:unexpected, string:msg) {
+    if (actual != unexpected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (should not be '");
+        print(unexpected);
+        println("')");
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+func:main = int32() {
+    println("=== aria-libc _fs_readdir tests (GETDENTS64) ===");
+    println("");
+
+    // ── Setup: create a test directory with known contents ─────────
+    // Clean up from previous runs
+    drop(libc_unlink("/tmp/aria_readdir_test/file_a.txt") ?! -1i64);
+    drop(libc_unlink("/tmp/aria_readdir_test/file_b.txt") ?! -1i64);
+    drop(libc_unlink("/tmp/aria_readdir_test/file_c.txt") ?! -1i64);
+    drop(libc_rmdir("/tmp/aria_readdir_test/subdir") ?! -1i64);
+    drop(libc_rmdir("/tmp/aria_readdir_test") ?! -1i64);
+
+    // Create test directory structure
+    int64:mk1 = libc_mkdir("/tmp/aria_readdir_test", MODE_755) ?! -1i64;
+    drop(assert_eq_int(mk1, 0i64, "setup: mkdir test dir"));
+
+    int64:w1 = libc_write_file("/tmp/aria_readdir_test/file_a.txt", "aaa") ?! -1i64;
+    int64:w2 = libc_write_file("/tmp/aria_readdir_test/file_b.txt", "bbb") ?! -1i64;
+    int64:w3 = libc_write_file("/tmp/aria_readdir_test/file_c.txt", "ccc") ?! -1i64;
+    int64:mk2 = libc_mkdir("/tmp/aria_readdir_test/subdir", MODE_755) ?! -1i64;
+    drop(assert_eq_int(mk2, 0i64, "setup: mkdir subdir"));
+
+    // ── Test 1: opendir + count ────────────────────────────────────
+    println("-- opendir + readdir_count --");
+    int64:dh = libc_opendir("/tmp/aria_readdir_test") ?! 0i64;
+    drop(assert_gt(dh, 0i64, "opendir returns valid handle"));
+
+    // Should have 6 entries: . .. file_a.txt file_b.txt file_c.txt subdir
+    int64:count = libc_readdir_count(dh) ?! 0i64;
+    drop(assert_eq_int(count, 6i64, "readdir_count returns 6 entries"));
+
+    // ── Test 2: readdir_name — find known entries ──────────────────
+    println("-- readdir_name --");
+    // Walk all entries and check we find our known names
+    int64:found_dot = 0i64;
+    int64:found_dotdot = 0i64;
+    int64:found_a = 0i64;
+    int64:found_b = 0i64;
+    int64:found_c = 0i64;
+    int64:found_sub = 0i64;
+    int64:idx = 0i64;
+
+    while (idx < count) {
+        string:name = libc_readdir_name(dh, idx) ?! "";
+        if (name == ".") {
+            found_dot = 1i64;
+        }
+        if (name == "..") {
+            found_dotdot = 1i64;
+        }
+        if (name == "file_a.txt") {
+            found_a = 1i64;
+        }
+        if (name == "file_b.txt") {
+            found_b = 1i64;
+        }
+        if (name == "file_c.txt") {
+            found_c = 1i64;
+        }
+        if (name == "subdir") {
+            found_sub = 1i64;
+        }
+        idx = idx + 1i64;
+    }
+
+    drop(assert_eq_int(found_dot, 1i64, "found '.' entry"));
+    drop(assert_eq_int(found_dotdot, 1i64, "found '..' entry"));
+    drop(assert_eq_int(found_a, 1i64, "found 'file_a.txt'"));
+    drop(assert_eq_int(found_b, 1i64, "found 'file_b.txt'"));
+    drop(assert_eq_int(found_c, 1i64, "found 'file_c.txt'"));
+    drop(assert_eq_int(found_sub, 1i64, "found 'subdir'"));
+
+    // ── Test 3: readdir_type — check file types ────────────────────
+    println("-- readdir_type --");
+    int64:dir_count = 0i64;
+    int64:reg_count = 0i64;
+    int64:idx2 = 0i64;
+
+    while (idx2 < count) {
+        int64:dtype = libc_readdir_type(dh, idx2) ?! -1i64;
+        if (dtype == DT_DIR) {
+            dir_count = dir_count + 1i64;
+        }
+        if (dtype == DT_REG) {
+            reg_count = reg_count + 1i64;
+        }
+        idx2 = idx2 + 1i64;
+    }
+
+    // 3 directories: . .. subdir
+    drop(assert_eq_int(dir_count, 3i64, "3 directory entries (. .. subdir)"));
+    // 3 regular files: file_a.txt file_b.txt file_c.txt
+    drop(assert_eq_int(reg_count, 3i64, "3 regular file entries"));
+
+    // ── Test 4: readdir_ino — inodes should be non-zero ────────────
+    println("-- readdir_ino --");
+    int64:ino0 = libc_readdir_ino(dh, 0i64) ?! 0i64;
+    drop(assert_gt(ino0, 0i64, "entry 0 has non-zero inode"));
+
+    // ── Test 5: out-of-bounds access ───────────────────────────────
+    println("-- out-of-bounds --");
+    string:bad_name = libc_readdir_name(dh, 999i64) ?! "";
+    drop(assert_str_eq(bad_name, "", "readdir_name out-of-bounds returns empty"));
+
+    int64:bad_type = libc_readdir_type(dh, 999i64) ?! -1i64;
+    drop(assert_eq_int(bad_type, -1i64, "readdir_type out-of-bounds returns -1"));
+
+    int64:bad_ino = libc_readdir_ino(dh, 999i64) ?! 0i64;
+    drop(assert_eq_int(bad_ino, 0i64, "readdir_ino out-of-bounds returns 0"));
+
+    // ── Test 6: closedir ───────────────────────────────────────────
+    println("-- closedir --");
+    int64:cl = libc_closedir(dh) ?! -1i64;
+    drop(assert_eq_int(cl, 0i64, "closedir returns 0"));
+
+    // ── Test 7: opendir on nonexistent directory ───────────────────
+    println("-- error cases --");
+    int64:bad_dh = libc_opendir("/tmp/aria_readdir_nonexistent") ?! 0i64;
+    drop(assert_eq_int(bad_dh, 0i64, "opendir nonexistent returns 0"));
+
+    // closedir on null handle
+    int64:bad_cl = libc_closedir(0i64) ?! -1i64;
+    drop(assert_eq_int(bad_cl, -1i64, "closedir(0) returns -1"));
+
+    // readdir_count on null handle
+    int64:bad_count = libc_readdir_count(0i64) ?! 0i64;
+    drop(assert_eq_int(bad_count, 0i64, "readdir_count(0) returns 0"));
+
+    // ── Test 8: open a second directory (reuse after close) ────────
+    println("-- second opendir --");
+    int64:dh2 = libc_opendir("/tmp/aria_readdir_test/subdir") ?! 0i64;
+    drop(assert_gt(dh2, 0i64, "opendir subdir returns valid handle"));
+
+    int64:sub_count = libc_readdir_count(dh2) ?! 0i64;
+    // Empty subdir should have 2 entries: . and ..
+    drop(assert_eq_int(sub_count, 2i64, "empty subdir has 2 entries (. ..)"));
+
+    drop(libc_closedir(dh2) ?! -1i64);
+
+    // ── Cleanup ────────────────────────────────────────────────────
+    drop(libc_unlink("/tmp/aria_readdir_test/file_a.txt") ?! -1i64);
+    drop(libc_unlink("/tmp/aria_readdir_test/file_b.txt") ?! -1i64);
+    drop(libc_unlink("/tmp/aria_readdir_test/file_c.txt") ?! -1i64);
+    drop(libc_rmdir("/tmp/aria_readdir_test/subdir") ?! -1i64);
+    drop(libc_rmdir("/tmp/aria_readdir_test") ?! -1i64);
+
+    // Summary
+    println("");
+    print("PASS: ");
+    println(string_from_int(pass_count));
+    print("FAIL: ");
+    println(string_from_int(fail_count));
+
+    if (fail_count == 0i64) {
+        println("ALL PASSED");
+    } else {
+        println("SOME FAILED");
+    }
+
+    exit(0);
+};

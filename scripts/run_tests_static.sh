@@ -43,6 +43,11 @@ declare -a ALL_TESTS=(
     "identity:tests/test_identity.aria:"
     "io_core:tests/test_io_core.aria:"
     "stat:tests/test_stat.aria:-laria_libc_mem"
+    # v0.2.2: Pure Aria sys() filesystem modules
+    "fs_core:tests/test_fs_core.aria:"
+    "fs_link:tests/test_fs_link.aria:-laria_libc_mem"
+    "fs_dir:tests/test_fs_dir.aria:"
+    "fs_readdir:tests/test_fs_readdir.aria:-laria_libc_mem"
 )
 
 # ── Filter tests if args provided ───────────────────────────────────

@@ -1,0 +1,52 @@
+// _fs_core.aria — Core filesystem operations via sys()
+// No C shim required. Calls kernel directly.
+//
+// Port status:
+//   libc_mkdir, libc_rmdir — PURE sys()
+//   libc_rename — PURE sys()
+//   libc_unlink, libc_unlinkat — PURE sys()
+//
+// Returns: 0 on success, negated errno on failure.
+//
+// Usage:
+//   use "../src/_fs_core.aria".*;
+//   use "../src/_constants.aria".*;
+
+use "_constants.aria".*;
+
+// ── mkdir — create a directory ──────────────────────────────────────
+// mode: permission bits (e.g. MODE_755)
+pub func:libc_mkdir = int64(string:path, int64:mode) {
+    Result<int64>:r = sys(MKDIR, path, mode);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// ── rmdir — remove an empty directory ───────────────────────────────
+pub func:libc_rmdir = int64(string:path) {
+    Result<int64>:r = sys(RMDIR, path);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// ── rename — rename/move a file or directory ────────────────────────
+pub func:libc_rename = int64(string:oldpath, string:newpath) {
+    Result<int64>:r = sys(RENAME, oldpath, newpath);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// ── unlink — remove a file ─────────────────────────────────────────
+pub func:libc_unlink = int64(string:path) {
+    Result<int64>:r = sys(UNLINK, path);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// ── unlinkat — remove a file relative to a directory fd ─────────────
+// flags: 0 for file, AT_REMOVEDIR (0x200 = 512) for directory
+pub func:libc_unlinkat = int64(int64:dirfd, string:path, int64:flags) {
+    Result<int64>:r = sys(UNLINKAT, dirfd, path, flags);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};

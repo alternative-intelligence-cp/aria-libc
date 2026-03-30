@@ -1,0 +1,142 @@
+// test_fs_core.aria — Tests for _fs_core.aria (mkdir/rmdir/rename/unlink)
+
+use "../src/_fs_core.aria".*;
+use "../src/_constants.aria".*;
+use "../src/_io_core.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq_int = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected ");
+        print(string_from_int(expected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_neq_int = NIL(int64:actual, int64:unexpected, string:msg) {
+    if (actual != unexpected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", should not be ");
+        print(string_from_int(unexpected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+func:main = int32() {
+    println("=== aria-libc _fs_core tests (pure sys()) ===");
+    println("");
+
+    // ── Test 1: mkdir ──────────────────────────────────────────────
+    println("-- mkdir --");
+    // Clean up in case of previous failed run
+    drop(libc_rmdir("/tmp/aria_fscore_test") ?! -1i64);
+
+    int64:mk1 = libc_mkdir("/tmp/aria_fscore_test", MODE_755) ?! -1i64;
+    drop(assert_eq_int(mk1, 0i64, "mkdir returns 0 on success"));
+
+    // mkdir again should fail (already exists)
+    int64:mk2 = libc_mkdir("/tmp/aria_fscore_test", MODE_755) ?! -1i64;
+    drop(assert_eq_int(mk2, -1i64, "mkdir existing dir returns -1"));
+
+    // ── Test 2: rmdir ──────────────────────────────────────────────
+    println("-- rmdir --");
+    int64:rm1 = libc_rmdir("/tmp/aria_fscore_test") ?! -1i64;
+    drop(assert_eq_int(rm1, 0i64, "rmdir empty dir returns 0"));
+
+    // rmdir nonexistent should fail
+    int64:rm2 = libc_rmdir("/tmp/aria_fscore_test_nonexistent") ?! -1i64;
+    drop(assert_eq_int(rm2, -1i64, "rmdir nonexistent returns -1"));
+
+    // ── Test 3: unlink ─────────────────────────────────────────────
+    println("-- unlink --");
+    // Create a test file first
+    int64:w1 = libc_write_file("/tmp/aria_fscore_unlink.txt", "delete me") ?! -1i64;
+    drop(assert_neq_int(w1, -1i64, "create test file for unlink"));
+
+    int64:u1 = libc_unlink("/tmp/aria_fscore_unlink.txt") ?! -1i64;
+    drop(assert_eq_int(u1, 0i64, "unlink returns 0 on success"));
+
+    // unlink again should fail
+    int64:u2 = libc_unlink("/tmp/aria_fscore_unlink.txt") ?! -1i64;
+    drop(assert_eq_int(u2, -1i64, "unlink nonexistent returns -1"));
+
+    // ── Test 4: rename ─────────────────────────────────────────────
+    println("-- rename --");
+    // Create a file, rename it, verify new name exists and old doesn't
+    int64:w2 = libc_write_file("/tmp/aria_fscore_old.txt", "rename me") ?! -1i64;
+    drop(assert_neq_int(w2, -1i64, "create test file for rename"));
+
+    // Clean up destination in case of previous failed run
+    drop(libc_unlink("/tmp/aria_fscore_new.txt") ?! -1i64);
+
+    int64:rn1 = libc_rename("/tmp/aria_fscore_old.txt", "/tmp/aria_fscore_new.txt") ?! -1i64;
+    drop(assert_eq_int(rn1, 0i64, "rename returns 0 on success"));
+
+    // Read from new name
+    string:content = libc_read_file("/tmp/aria_fscore_new.txt") ?! "";
+    if (content == "rename me") {
+        pass_count = pass_count + 1i64;
+        println("  PASS: renamed file has correct content");
+    } else {
+        fail_count = fail_count + 1i64;
+        println("  FAIL: renamed file has wrong content");
+    }
+
+    // Old name should be gone
+    int64:bad_fd = libc_open_read("/tmp/aria_fscore_old.txt") ?! -1i64;
+    drop(assert_eq_int(bad_fd, -1i64, "old name no longer exists after rename"));
+
+    // rename nonexistent should fail
+    int64:rn2 = libc_rename("/tmp/aria_fscore_nope.txt", "/tmp/aria_fscore_nope2.txt") ?! -1i64;
+    drop(assert_eq_int(rn2, -1i64, "rename nonexistent returns -1"));
+
+    // ── Test 5: mkdir + rmdir round-trip ───────────────────────────
+    println("-- mkdir+rmdir round-trip --");
+    int64:mk3 = libc_mkdir("/tmp/aria_fscore_round", MODE_755) ?! -1i64;
+    drop(assert_eq_int(mk3, 0i64, "mkdir for round-trip"));
+    int64:rm3 = libc_rmdir("/tmp/aria_fscore_round") ?! -1i64;
+    drop(assert_eq_int(rm3, 0i64, "rmdir for round-trip"));
+
+    // ── Cleanup ────────────────────────────────────────────────────
+    drop(libc_unlink("/tmp/aria_fscore_new.txt") ?! -1i64);
+
+    // Summary
+    println("");
+    print("PASS: ");
+    println(string_from_int(pass_count));
+    print("FAIL: ");
+    println(string_from_int(fail_count));
+
+    if (fail_count == 0i64) {
+        println("ALL PASSED");
+    } else {
+        println("SOME FAILED");
+    }
+
+    exit(0);
+};

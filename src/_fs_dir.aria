@@ -1,0 +1,26 @@
+// _fs_dir.aria — Directory navigation via sys()
+// No C shim required. Calls kernel directly.
+//
+// Port status:
+//   libc_getcwd — PURE sys() (compiler-managed buffer, returns Result<str>)
+//   libc_chdir — PURE sys()
+//
+// Usage:
+//   use "../src/_fs_dir.aria".*;
+
+// ── getcwd — get current working directory ──────────────────────────
+// Returns the current directory as a string, or "" on failure.
+// The compiler auto-manages the buffer for GETCWD (returns Result<str>).
+pub func:libc_getcwd = string() {
+    Result<string>:r = sys(GETCWD);
+    string:cwd = r ? "";
+    pass(cwd);
+};
+
+// ── chdir — change current working directory ────────────────────────
+// Returns 0 on success, -1 on failure.
+pub func:libc_chdir = int64(string:path) {
+    Result<int64>:r = sys(CHDIR, path);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};

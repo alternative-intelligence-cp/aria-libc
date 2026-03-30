@@ -1,0 +1,72 @@
+// _fs_link.aria — Link, permission, and access operations via sys()
+// No C shim required. Calls kernel directly.
+//
+// Port status:
+//   libc_symlink — PURE sys()
+//   libc_readlink — PURE sys() (compiler-managed buffer, returns Result<str>)
+//   libc_hardlink — PURE sys()
+//   libc_chmod — PURE sys()
+//   libc_access — PURE sys()
+//
+// Usage:
+//   use "../src/_fs_link.aria".*;
+//   use "../src/_constants.aria".*;
+
+use "_constants.aria".*;
+
+// ── symlink — create a symbolic link ────────────────────────────────
+// Creates linkpath pointing to target.
+pub func:libc_symlink = int64(string:target, string:linkpath) {
+    Result<int64>:r = sys(SYMLINK, target, linkpath);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// ── readlink — read the target of a symbolic link ───────────────────
+// Returns the target path string, or "" on failure.
+// The compiler auto-manages the buffer for READLINK (returns Result<str>).
+pub func:libc_readlink = string(string:path) {
+    Result<string>:r = sys(READLINK, path);
+    string:target = r ? "";
+    pass(target);
+};
+
+// ── hardlink — create a hard link (via LINKAT) ──────────────────────
+// Creates newpath as a hard link to oldpath.
+pub func:libc_hardlink = int64(string:oldpath, string:newpath) {
+    // LINKAT(olddirfd, oldpath, newdirfd, newpath, flags)
+    // Use AT_FDCWD for both dir fds, flags=0.
+    // LINKAT requires sys!!() (full tier).
+    int64:fdcwd = 0i64 - 100i64;
+    Result<int64>:r = sys!!(LINKAT, fdcwd, oldpath, fdcwd, newpath, 0i64);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// ── chmod — change file permissions ─────────────────────────────────
+pub func:libc_chmod = int64(string:path, int64:mode) {
+    // CHMOD requires sys!!() (full tier).
+    Result<int64>:r = sys!!(CHMOD, path, mode);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// ── chown — change file ownership ───────────────────────────────────
+pub func:libc_chown = int64(string:path, int64:owner, int64:group) {
+    // CHOWN requires sys!!() (full tier).
+    Result<int64>:r = sys!!(CHOWN, path, owner, group);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// ── access — check file access permissions ──────────────────────────
+// mode: F_OK (exists), R_OK, W_OK, X_OK (or bitwise OR combination)
+// Returns 0 on success, -1 on failure.
+pub func:libc_access = int64(string:path, int64:mode) {
+    // FACCESSAT(dirfd, pathname, mode, flags)
+    // Use AT_FDCWD, flags=0.
+    int64:fdcwd = 0i64 - 100i64;
+    Result<int64>:r = sys(FACCESSAT, fdcwd, path, mode, 0i64);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
