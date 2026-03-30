@@ -1,0 +1,288 @@
+// _stat.aria — File stat operations via sys(NEWFSTATAT)
+// Uses sys() for the syscall, extern helpers for struct field reads.
+//
+// Port status:
+//   syscall itself — PURE sys(NEWFSTATAT)
+//   struct field reads — extern (read_int64/read_int32 from C shim)
+//   These externs will be eliminated when Aria gets native ptr dereference.
+//
+// x86_64 Linux struct stat layout (144 bytes):
+//   offset  0: st_dev     (int64)
+//   offset  8: st_ino     (int64)
+//   offset 16: st_nlink   (int64)
+//   offset 24: st_mode    (int32)
+//   offset 28: st_uid     (int32)
+//   offset 32: st_gid     (int32)
+//   offset 36: __pad0     (int32)
+//   offset 40: st_rdev    (int64)
+//   offset 48: st_size    (int64)
+//   offset 56: st_blksize (int64)
+//   offset 64: st_blocks  (int64)
+//   offset 72: st_atime   (int64)
+//   offset 80: st_atime_ns (int64)
+//   offset 88: st_mtime   (int64)
+//   offset 96: st_mtime_ns (int64)
+//   offset104: st_ctime   (int64)
+//   offset112: st_ctime_ns (int64)
+//
+// Usage:
+//   use "../src/_stat.aria".*;
+//   use "../src/_constants.aria".*;
+
+use "_constants.aria".*;
+
+// ── Workaround: negative constants imported via use are zeroed (compiler bug).
+// Define AT_FDCWD locally as subtraction until the bug is fixed.
+int64:_STAT_AT_FDCWD = 0i64 - 100i64;
+
+// ── Struct field read helpers (temporary C shim dependency) ──────────
+// These read raw memory at ptr+offset. They will be replaced by native
+// Aria pointer dereference when available.
+extern func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
+extern func:aria_libc_mem_read_int32 = int64(int64:ptr, int64:offset);
+
+// ── struct stat buffer size ─────────────────────────────────────────
+int64:STAT_BUF_SIZE = 144i64;
+
+// ── struct stat field offsets ───────────────────────────────────────
+int64:STAT_OFF_DEV      = 0i64;
+int64:STAT_OFF_INO      = 8i64;
+int64:STAT_OFF_NLINK    = 16i64;
+int64:STAT_OFF_MODE     = 24i64;
+int64:STAT_OFF_UID      = 28i64;
+int64:STAT_OFF_GID      = 32i64;
+int64:STAT_OFF_RDEV     = 40i64;
+int64:STAT_OFF_SIZE     = 48i64;
+int64:STAT_OFF_BLKSIZE  = 56i64;
+int64:STAT_OFF_BLOCKS   = 64i64;
+int64:STAT_OFF_ATIME    = 72i64;
+int64:STAT_OFF_ATIME_NS = 80i64;
+int64:STAT_OFF_MTIME    = 88i64;
+int64:STAT_OFF_MTIME_NS = 96i64;
+int64:STAT_OFF_CTIME    = 104i64;
+int64:STAT_OFF_CTIME_NS = 112i64;
+
+// ── Core: allocate stat buffer, call NEWFSTATAT, read fields ────────
+
+// Internal helper: call NEWFSTATAT and return buffer pointer (or 0 on failure).
+// Caller must sys(MUNMAP, buf, STAT_BUF_SIZE) when done.
+func:_stat_path = int64(string:path) {
+    // Allocate stat buffer via mmap (MAP_PRIVATE|MAP_ANONYMOUS = 34, PROT_READ|PROT_WRITE = 3)
+    Result<int64>:buf_r = sys(MMAP, 0i64, STAT_BUF_SIZE, 3i64, 34i64, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) {
+        pass(0i64);
+    }
+
+    // NEWFSTATAT(dirfd, pathname, statbuf, flags)
+    // AT_FDCWD = -100, computed inline because imported negative constants are zeroed (compiler bug)
+    int64:fdcwd = 0i64 - 100i64;
+    Result<int64>:r = sys(NEWFSTATAT, fdcwd, path, buf, 0i64);
+    int64:ret = r ? -1i64;
+
+    if (ret < 0i64) {
+        drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+        pass(0i64);
+    }
+
+    pass(buf);
+};
+
+// ── Public API: individual field accessors ───────────────────────────
+// These mirror the v0.2.0 libc_stat_* functions but use sys() internally.
+
+pub func:libc_stat_size = int64(string:path) {
+    int64:buf = _stat_path(path) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+    int64:sz = aria_libc_mem_read_int64(buf, STAT_OFF_SIZE);
+    drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+    pass(sz);
+};
+
+pub func:libc_stat_mode = int64(string:path) {
+    int64:buf = _stat_path(path) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+    int64:mode = aria_libc_mem_read_int32(buf, STAT_OFF_MODE);
+    drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+    pass(mode);
+};
+
+pub func:libc_stat_mtime = int64(string:path) {
+    int64:buf = _stat_path(path) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+    int64:mtime = aria_libc_mem_read_int64(buf, STAT_OFF_MTIME);
+    drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+    pass(mtime);
+};
+
+pub func:libc_stat_uid = int64(string:path) {
+    int64:buf = _stat_path(path) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+    int64:uid = aria_libc_mem_read_int32(buf, STAT_OFF_UID);
+    drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+    pass(uid);
+};
+
+pub func:libc_stat_gid = int64(string:path) {
+    int64:buf = _stat_path(path) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+    int64:gid = aria_libc_mem_read_int32(buf, STAT_OFF_GID);
+    drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+    pass(gid);
+};
+
+pub func:libc_stat_ino = int64(string:path) {
+    int64:buf = _stat_path(path) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+    int64:ino = aria_libc_mem_read_int64(buf, STAT_OFF_INO);
+    drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+    pass(ino);
+};
+
+pub func:libc_stat_nlink = int64(string:path) {
+    int64:buf = _stat_path(path) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+    int64:nlink = aria_libc_mem_read_int64(buf, STAT_OFF_NLINK);
+    drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+    pass(nlink);
+};
+
+pub func:libc_stat_blksize = int64(string:path) {
+    int64:buf = _stat_path(path) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+    int64:blk = aria_libc_mem_read_int64(buf, STAT_OFF_BLKSIZE);
+    drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+    pass(blk);
+};
+
+pub func:libc_stat_blocks = int64(string:path) {
+    int64:buf = _stat_path(path) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+    int64:blocks = aria_libc_mem_read_int64(buf, STAT_OFF_BLOCKS);
+    drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+    pass(blocks);
+};
+
+pub func:libc_stat_atime = int64(string:path) {
+    int64:buf = _stat_path(path) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+    int64:atime = aria_libc_mem_read_int64(buf, STAT_OFF_ATIME);
+    drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+    pass(atime);
+};
+
+pub func:libc_stat_ctime = int64(string:path) {
+    int64:buf = _stat_path(path) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+    int64:ctime = aria_libc_mem_read_int64(buf, STAT_OFF_CTIME);
+    drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+    pass(ctime);
+};
+
+// ── Convenience: type checks and existence ──────────────────────────
+
+pub func:libc_stat_is_dir = int64(string:path) {
+    int64:buf = _stat_path(path) ?! 0i64;
+    if (buf == 0i64) { pass(0i64); }
+    int64:mode = aria_libc_mem_read_int32(buf, STAT_OFF_MODE);
+    drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+    uint64:umode = @cast<uint64>(mode);
+    uint64:ufmt = @cast<uint64>(S_IFMT);
+    uint64:ftype = umode & ufmt;
+    uint64:udir = @cast<uint64>(S_IFDIR);
+    if (ftype == udir) {
+        pass(1i64);
+    }
+    pass(0i64);
+};
+
+pub func:libc_stat_is_file = int64(string:path) {
+    int64:buf = _stat_path(path) ?! 0i64;
+    if (buf == 0i64) { pass(0i64); }
+    int64:mode = aria_libc_mem_read_int32(buf, STAT_OFF_MODE);
+    drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+    uint64:umode = @cast<uint64>(mode);
+    uint64:ufmt = @cast<uint64>(S_IFMT);
+    uint64:ftype = umode & ufmt;
+    uint64:ureg = @cast<uint64>(S_IFREG);
+    if (ftype == ureg) {
+        pass(1i64);
+    }
+    pass(0i64);
+};
+
+pub func:libc_stat_is_symlink = int64(string:path) {
+    // Use AT_SYMLINK_NOFOLLOW to detect symlinks themselves
+    Result<int64>:buf_r = sys(MMAP, 0i64, STAT_BUF_SIZE, 3i64, 34i64, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) { pass(0i64); }
+
+    // AT_FDCWD inline (compiler bug: imported negatives are zeroed)
+    int64:fdcwd = 0i64 - 100i64;
+    Result<int64>:r = sys(NEWFSTATAT, fdcwd, path, buf, AT_SYMLINK_NOFOLLOW);
+    int64:ret = r ? -1i64;
+    if (ret < 0i64) {
+        drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+        pass(0i64);
+    }
+
+    int64:mode = aria_libc_mem_read_int32(buf, STAT_OFF_MODE);
+    drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+    uint64:umode = @cast<uint64>(mode);
+    uint64:ufmt = @cast<uint64>(S_IFMT);
+    uint64:ftype = umode & ufmt;
+    uint64:ulnk = @cast<uint64>(S_IFLNK);
+    if (ftype == ulnk) {
+        pass(1i64);
+    }
+    pass(0i64);
+};
+
+pub func:libc_stat_exists = int64(string:path) {
+    int64:buf = _stat_path(path) ?! 0i64;
+    if (buf == 0i64) { pass(0i64); }
+    drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
+    pass(1i64);
+};
+
+// ── Bulk: get multiple fields in one syscall ────────────────────────
+// For callers who need multiple fields, this avoids repeated mmap/syscall overhead.
+// Returns a fixed-width "struct" via multiple out-values encoded in a single
+// stat call. The caller can then read individual fields.
+
+// Returns the raw buffer pointer. Caller MUST call libc_stat_buf_release(buf) when done.
+pub func:libc_stat_buf = int64(string:path) {
+    int64:buf = _stat_path(path) ?! 0i64;
+    pass(buf);
+};
+
+pub func:libc_stat_buf_release = int64(int64:buf) {
+    if (buf == 0i64) { pass(0i64); }
+    Result<int64>:r = sys(MUNMAP, buf, STAT_BUF_SIZE);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+pub func:libc_stat_buf_size = int64(int64:buf) {
+    pass(aria_libc_mem_read_int64(buf, STAT_OFF_SIZE));
+};
+
+pub func:libc_stat_buf_mode = int64(int64:buf) {
+    pass(aria_libc_mem_read_int32(buf, STAT_OFF_MODE));
+};
+
+pub func:libc_stat_buf_mtime = int64(int64:buf) {
+    pass(aria_libc_mem_read_int64(buf, STAT_OFF_MTIME));
+};
+
+pub func:libc_stat_buf_uid = int64(int64:buf) {
+    pass(aria_libc_mem_read_int32(buf, STAT_OFF_UID));
+};
+
+pub func:libc_stat_buf_gid = int64(int64:buf) {
+    pass(aria_libc_mem_read_int32(buf, STAT_OFF_GID));
+};
+
+pub func:libc_stat_buf_ino = int64(int64:buf) {
+    pass(aria_libc_mem_read_int64(buf, STAT_OFF_INO));
+};

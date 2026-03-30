@@ -1,0 +1,203 @@
+// test_stat.aria — Tests for pure-Aria stat functions via sys(NEWFSTATAT)
+// Uses the mem shim for struct field reads.
+//
+// Build:
+//   cd tests && ariac test_stat.aria -o test_stat -L../shim -laria_libc_mem
+
+use "../src/_stat.aria".*;
+use "../src/_constants.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected ");
+        print(string_from_int(expected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_gt = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual > threshold) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected > ");
+        print(string_from_int(threshold));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_ne = NIL(int64:a, int64:b, string:msg) {
+    if (a != b) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(a));
+        println(", expected different)");
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+func:main = int32() {
+    println("=== aria-libc stat tests (sys(NEWFSTATAT)) ===");
+    println("");
+
+    // We'll stat this test file itself (known to exist)
+    string:self = "test_stat.aria";
+    string:noexist = "/tmp/__aria_libc_no_such_file_948372__";
+
+    // ── exists ──────────────────────────────────────
+    println("-- exists --");
+    int64:e1 = libc_stat_exists(self) ?! 0i64;
+    drop(assert_eq(e1, 1i64, "stat_exists on self"));
+
+    int64:e2 = libc_stat_exists(noexist) ?! 0i64;
+    drop(assert_eq(e2, 0i64, "stat_exists on missing file"));
+
+    // ── size ────────────────────────────────────────
+    println("-- size --");
+    int64:sz = libc_stat_size(self) ?! -1i64;
+    drop(assert_gt(sz, 0i64, "stat_size > 0 on self"));
+
+    int64:sz2 = libc_stat_size(noexist) ?! -1i64;
+    drop(assert_eq(sz2, -1i64, "stat_size -1 on missing file"));
+
+    // ── mode ────────────────────────────────────────
+    println("-- mode --");
+    int64:mode = libc_stat_mode(self) ?! -1i64;
+    drop(assert_gt(mode, 0i64, "stat_mode > 0 on self"));
+
+    // ── is_file / is_dir ────────────────────────────
+    println("-- is_file / is_dir --");
+    int64:isf = libc_stat_is_file(self) ?! 0i64;
+    drop(assert_eq(isf, 1i64, "is_file on self"));
+
+    int64:isd = libc_stat_is_dir(self) ?! 0i64;
+    drop(assert_eq(isd, 0i64, "is_dir on self (should be 0)"));
+
+    int64:isd2 = libc_stat_is_dir(".") ?! 0i64;
+    drop(assert_eq(isd2, 1i64, "is_dir on '.'"));
+
+    int64:isf2 = libc_stat_is_file(".") ?! 0i64;
+    drop(assert_eq(isf2, 0i64, "is_file on '.' (should be 0)"));
+
+    // ── missing path returns 0 for bool functions ───
+    int64:isf3 = libc_stat_is_file(noexist) ?! 0i64;
+    drop(assert_eq(isf3, 0i64, "is_file on missing file"));
+
+    int64:isd3 = libc_stat_is_dir(noexist) ?! 0i64;
+    drop(assert_eq(isd3, 0i64, "is_dir on missing file"));
+
+    // ── mtime ───────────────────────────────────────
+    println("-- mtime --");
+    int64:mt = libc_stat_mtime(self) ?! -1i64;
+    drop(assert_gt(mt, 1700000000i64, "mtime > 2023-11-14 epoch"));
+
+    // ── uid / gid ───────────────────────────────────
+    println("-- uid / gid --");
+    int64:uid = libc_stat_uid(self) ?! -1i64;
+    drop(assert_gt(uid, 0i64, "stat_uid > 0"));
+
+    int64:gid = libc_stat_gid(self) ?! -1i64;
+    drop(assert_gt(gid, 0i64, "stat_gid > 0"));
+
+    // ── ino ─────────────────────────────────────────
+    println("-- ino --");
+    int64:ino = libc_stat_ino(self) ?! -1i64;
+    drop(assert_gt(ino, 0i64, "stat_ino > 0"));
+
+    // ── nlink ───────────────────────────────────────
+    println("-- nlink --");
+    int64:nlink = libc_stat_nlink(self) ?! -1i64;
+    drop(assert_gt(nlink, 0i64, "stat_nlink >= 1"));
+
+    // ── blksize / blocks ────────────────────────────
+    println("-- blksize / blocks --");
+    int64:blk = libc_stat_blksize(self) ?! -1i64;
+    drop(assert_gt(blk, 0i64, "stat_blksize > 0"));
+
+    int64:blocks = libc_stat_blocks(self) ?! -1i64;
+    drop(assert_gt(blocks, 0i64, "stat_blocks > 0"));
+
+    // ── atime / ctime ───────────────────────────────
+    println("-- atime / ctime --");
+    int64:at = libc_stat_atime(self) ?! -1i64;
+    drop(assert_gt(at, 1700000000i64, "atime > 2023-11-14 epoch"));
+
+    int64:ct = libc_stat_ctime(self) ?! -1i64;
+    drop(assert_gt(ct, 1700000000i64, "ctime > 2023-11-14 epoch"));
+
+    // ── bulk buffer API ─────────────────────────────
+    println("-- bulk buffer API --");
+    int64:buf = libc_stat_buf(self) ?! 0i64;
+    drop(assert_gt(buf, 0i64, "stat_buf returns non-null"));
+
+    int64:bsz = libc_stat_buf_size(buf) ?! -1i64;
+    drop(assert_eq(bsz, sz, "buf_size matches stat_size"));
+
+    int64:bmode = libc_stat_buf_mode(buf) ?! -1i64;
+    drop(assert_eq(bmode, mode, "buf_mode matches stat_mode"));
+
+    int64:bmt = libc_stat_buf_mtime(buf) ?! -1i64;
+    drop(assert_eq(bmt, mt, "buf_mtime matches stat_mtime"));
+
+    int64:buid = libc_stat_buf_uid(buf) ?! -1i64;
+    drop(assert_eq(buid, uid, "buf_uid matches stat_uid"));
+
+    int64:bgid = libc_stat_buf_gid(buf) ?! -1i64;
+    drop(assert_eq(bgid, gid, "buf_gid matches stat_gid"));
+
+    int64:bino = libc_stat_buf_ino(buf) ?! -1i64;
+    drop(assert_eq(bino, ino, "buf_ino matches stat_ino"));
+
+    // Release the buffer
+    int64:rel = libc_stat_buf_release(buf) ?! -1i64;
+    drop(assert_eq(rel, 0i64, "buf_release success"));
+
+    // Null release should be safe
+    int64:rel2 = libc_stat_buf_release(0i64) ?! -1i64;
+    drop(assert_eq(rel2, 0i64, "buf_release(null) returns 0"));
+
+    // ── Summary ─────────────────────────────────────
+    println("");
+    print("PASS: ");
+    println(string_from_int(pass_count));
+    print("FAIL: ");
+    println(string_from_int(fail_count));
+
+    if (fail_count == 0i64) {
+        println("ALL PASSED");
+    } else {
+        println("SOME FAILED");
+    }
+
+    exit(0);
+};

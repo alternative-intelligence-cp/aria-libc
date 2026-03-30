@@ -170,6 +170,16 @@ int64_t aria_libc_mem_write_byte(int64_t ptr, int64_t offset, int64_t val) {
     return 0;
 }
 
+int64_t aria_libc_mem_read_int32(int64_t ptr, int64_t offset) {
+    if (ptr == 0) {
+        last_errno = EINVAL;
+        return 0;
+    }
+    int32_t *p = (int32_t *)((char *)(intptr_t)ptr + offset);
+    last_errno = 0;
+    return (int64_t)*p;
+}
+
 int64_t aria_libc_mem_read_int64(int64_t ptr, int64_t offset) {
     if (ptr == 0) {
         last_errno = EINVAL;

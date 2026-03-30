@@ -1,0 +1,139 @@
+// _errno.aria — POSIX errno constants and message table
+// Pure Aria — no C shim required.
+//
+// Usage:
+//   use "../src/_errno.aria".*;
+//   string:msg = errno_to_string(2i64);  // "No such file or directory"
+
+// ── Errno constants ─────────────────────────────────────────────────
+int64:EPERM   = 1i64;    // Operation not permitted
+int64:ENOENT  = 2i64;    // No such file or directory
+int64:ESRCH   = 3i64;    // No such process
+int64:EINTR   = 4i64;    // Interrupted system call
+int64:EIO     = 5i64;    // I/O error
+int64:ENXIO   = 6i64;    // No such device or address
+int64:E2BIG   = 7i64;    // Argument list too long
+int64:ENOEXEC = 8i64;    // Exec format error
+int64:EBADF   = 9i64;    // Bad file descriptor
+int64:ECHILD  = 10i64;   // No child processes
+int64:EAGAIN  = 11i64;   // Try again (also EWOULDBLOCK)
+int64:ENOMEM  = 12i64;   // Out of memory
+int64:EACCES  = 13i64;   // Permission denied
+int64:EFAULT  = 14i64;   // Bad address
+int64:ENOTBLK = 15i64;   // Block device required
+int64:EBUSY   = 16i64;   // Device or resource busy
+int64:EEXIST  = 17i64;   // File exists
+int64:EXDEV   = 18i64;   // Cross-device link
+int64:ENODEV  = 19i64;   // No such device
+int64:ENOTDIR = 20i64;   // Not a directory
+int64:EISDIR  = 21i64;   // Is a directory
+int64:EINVAL  = 22i64;   // Invalid argument
+int64:ENFILE  = 23i64;   // File table overflow
+int64:EMFILE  = 24i64;   // Too many open files
+int64:ENOTTY  = 25i64;   // Not a typewriter
+int64:ETXTBSY = 26i64;   // Text file busy
+int64:EFBIG   = 27i64;   // File too large
+int64:ENOSPC  = 28i64;   // No space left on device
+int64:ESPIPE  = 29i64;   // Illegal seek
+int64:EROFS   = 30i64;   // Read-only file system
+int64:EMLINK  = 31i64;   // Too many links
+int64:EPIPE   = 32i64;   // Broken pipe
+int64:EDOM    = 33i64;   // Math argument out of domain
+int64:ERANGE  = 34i64;   // Math result not representable
+int64:EDEADLK = 35i64;   // Resource deadlock would occur
+int64:ENAMETOOLONG = 36i64;  // File name too long
+int64:ENOLCK  = 37i64;   // No record locks available
+int64:ENOSYS  = 38i64;   // Function not implemented
+int64:ENOTEMPTY = 39i64;  // Directory not empty
+int64:ELOOP   = 40i64;   // Too many symbolic links
+int64:ENODATA = 61i64;   // No data available
+int64:ETIME   = 62i64;   // Timer expired
+int64:EOVERFLOW = 75i64; // Value too large for data type
+int64:EILSEQ  = 84i64;   // Illegal byte sequence
+int64:EADDRINUSE    = 98i64;   // Address already in use
+int64:EADDRNOTAVAIL = 99i64;   // Cannot assign requested address
+int64:ENETUNREACH   = 101i64;  // Network is unreachable
+int64:ECONNABORTED  = 103i64;  // Connection aborted
+int64:ECONNRESET    = 104i64;  // Connection reset by peer
+int64:ENOBUFS       = 105i64;  // No buffer space available
+int64:EISCONN       = 106i64;  // Socket already connected
+int64:ENOTCONN      = 107i64;  // Socket not connected
+int64:ETIMEDOUT     = 110i64;  // Connection timed out
+int64:ECONNREFUSED  = 111i64;  // Connection refused
+int64:EALREADY      = 114i64;  // Operation already in progress
+int64:EINPROGRESS   = 115i64;  // Operation now in progress
+
+// Alias
+int64:EWOULDBLOCK = 11i64;  // Same as EAGAIN
+
+// ── errno → string ──────────────────────────────────────────────────
+// Syscall errors return negative values: -errno. To get the errno
+// from a failed sys() call, negate the error: `int64:e = 0i64 - result;`
+
+pub func:errno_to_string = string(int64:e) {
+    if (e == 1i64)  { pass("Operation not permitted"); }
+    if (e == 2i64)  { pass("No such file or directory"); }
+    if (e == 3i64)  { pass("No such process"); }
+    if (e == 4i64)  { pass("Interrupted system call"); }
+    if (e == 5i64)  { pass("I/O error"); }
+    if (e == 6i64)  { pass("No such device or address"); }
+    if (e == 7i64)  { pass("Argument list too long"); }
+    if (e == 8i64)  { pass("Exec format error"); }
+    if (e == 9i64)  { pass("Bad file descriptor"); }
+    if (e == 10i64) { pass("No child processes"); }
+    if (e == 11i64) { pass("Resource temporarily unavailable"); }
+    if (e == 12i64) { pass("Cannot allocate memory"); }
+    if (e == 13i64) { pass("Permission denied"); }
+    if (e == 14i64) { pass("Bad address"); }
+    if (e == 15i64) { pass("Block device required"); }
+    if (e == 16i64) { pass("Device or resource busy"); }
+    if (e == 17i64) { pass("File exists"); }
+    if (e == 18i64) { pass("Invalid cross-device link"); }
+    if (e == 19i64) { pass("No such device"); }
+    if (e == 20i64) { pass("Not a directory"); }
+    if (e == 21i64) { pass("Is a directory"); }
+    if (e == 22i64) { pass("Invalid argument"); }
+    if (e == 23i64) { pass("Too many open files in system"); }
+    if (e == 24i64) { pass("Too many open files"); }
+    if (e == 25i64) { pass("Inappropriate ioctl for device"); }
+    if (e == 26i64) { pass("Text file busy"); }
+    if (e == 27i64) { pass("File too large"); }
+    if (e == 28i64) { pass("No space left on device"); }
+    if (e == 29i64) { pass("Illegal seek"); }
+    if (e == 30i64) { pass("Read-only file system"); }
+    if (e == 31i64) { pass("Too many links"); }
+    if (e == 32i64) { pass("Broken pipe"); }
+    if (e == 33i64) { pass("Numerical argument out of domain"); }
+    if (e == 34i64) { pass("Numerical result out of range"); }
+    if (e == 35i64) { pass("Resource deadlock avoided"); }
+    if (e == 36i64) { pass("File name too long"); }
+    if (e == 37i64) { pass("No locks available"); }
+    if (e == 38i64) { pass("Function not implemented"); }
+    if (e == 39i64) { pass("Directory not empty"); }
+    if (e == 40i64) { pass("Too many levels of symbolic links"); }
+    if (e == 61i64) { pass("No data available"); }
+    if (e == 62i64) { pass("Timer expired"); }
+    if (e == 75i64) { pass("Value too large for defined data type"); }
+    if (e == 84i64) { pass("Invalid or incomplete multibyte or wide character"); }
+    if (e == 98i64)  { pass("Address already in use"); }
+    if (e == 99i64)  { pass("Cannot assign requested address"); }
+    if (e == 101i64) { pass("Network is unreachable"); }
+    if (e == 103i64) { pass("Software caused connection abort"); }
+    if (e == 104i64) { pass("Connection reset by peer"); }
+    if (e == 105i64) { pass("No buffer space available"); }
+    if (e == 106i64) { pass("Transport endpoint is already connected"); }
+    if (e == 107i64) { pass("Transport endpoint is not connected"); }
+    if (e == 110i64) { pass("Connection timed out"); }
+    if (e == 111i64) { pass("Connection refused"); }
+    if (e == 114i64) { pass("Operation already in progress"); }
+    if (e == 115i64) { pass("Operation now in progress"); }
+    pass("Unknown error");
+};
+
+// ── Convenience: negate syscall error to errno ──────────────────────
+pub func:errno_from_result = int64(int64:result) {
+    if (result < 0i64) {
+        pass(0i64 - result);
+    }
+    pass(0i64);
+};

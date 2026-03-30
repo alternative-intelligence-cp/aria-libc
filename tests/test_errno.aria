@@ -1,0 +1,102 @@
+// test_errno.aria — Tests for pure-Aria errno constants and message table
+// No C shim required.
+//
+// Build:
+//   cd tests && ariac test_errno.aria -o test_errno
+
+use "../src/_errno.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got ");
+        print(string_from_int(actual));
+        print(", expected ");
+        print(string_from_int(expected));
+        println(")");
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        pass_count = pass_count + 1i64;
+        print("  PASS: ");
+        println(msg);
+    } else {
+        fail_count = fail_count + 1i64;
+        print("  FAIL: ");
+        print(msg);
+        print(" (got '");
+        print(actual);
+        print("', expected '");
+        print(expected);
+        println("')");
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+func:main = int32() {
+    println("=== aria-libc errno tests (pure Aria) ===");
+    println("");
+
+    // ── Constants sanity ────────────────────────────
+    println("-- constants --");
+    drop(assert_eq(EPERM,   1i64,  "EPERM = 1"));
+    drop(assert_eq(ENOENT,  2i64,  "ENOENT = 2"));
+    drop(assert_eq(EBADF,   9i64,  "EBADF = 9"));
+    drop(assert_eq(EAGAIN,  11i64, "EAGAIN = 11"));
+    drop(assert_eq(EWOULDBLOCK, 11i64, "EWOULDBLOCK = EAGAIN"));
+    drop(assert_eq(EACCES,  13i64, "EACCES = 13"));
+    drop(assert_eq(EEXIST,  17i64, "EEXIST = 17"));
+    drop(assert_eq(EINVAL,  22i64, "EINVAL = 22"));
+    drop(assert_eq(EPIPE,   32i64, "EPIPE = 32"));
+    drop(assert_eq(ENOSYS,  38i64, "ENOSYS = 38"));
+    drop(assert_eq(ECONNREFUSED, 111i64, "ECONNREFUSED = 111"));
+
+    // ── errno_to_string ─────────────────────────────
+    println("-- errno_to_string --");
+    drop(assert_str_eq(errno_to_string(1i64),  "Operation not permitted",   "str(EPERM)"));
+    drop(assert_str_eq(errno_to_string(2i64),  "No such file or directory", "str(ENOENT)"));
+    drop(assert_str_eq(errno_to_string(9i64),  "Bad file descriptor",       "str(EBADF)"));
+    drop(assert_str_eq(errno_to_string(13i64), "Permission denied",         "str(EACCES)"));
+    drop(assert_str_eq(errno_to_string(22i64), "Invalid argument",          "str(EINVAL)"));
+    drop(assert_str_eq(errno_to_string(111i64),"Connection refused",        "str(ECONNREFUSED)"));
+    drop(assert_str_eq(errno_to_string(999i64),"Unknown error",             "str(unknown) = Unknown error"));
+
+    // ── errno_from_result ───────────────────────────
+    println("-- errno_from_result --");
+    drop(assert_eq(errno_from_result(-2i64),  2i64,  "result(-2) -> ENOENT"));
+    drop(assert_eq(errno_from_result(-13i64), 13i64, "result(-13) -> EACCES"));
+    drop(assert_eq(errno_from_result(-22i64), 22i64, "result(-22) -> EINVAL"));
+    drop(assert_eq(errno_from_result(0i64),   0i64,  "result(0) -> 0 (success)"));
+    drop(assert_eq(errno_from_result(5i64),   0i64,  "result(5) -> 0 (success)"));
+
+    // ── Summary ─────────────────────────────────────
+    println("");
+    print("PASS: ");
+    println(string_from_int(pass_count));
+    print("FAIL: ");
+    println(string_from_int(fail_count));
+
+    if (fail_count == 0i64) {
+        println("ALL PASSED");
+    } else {
+        println("SOME FAILED");
+    }
+
+    exit(0);
+};
