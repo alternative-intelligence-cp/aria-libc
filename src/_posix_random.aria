@@ -1,0 +1,92 @@
+// _posix_random.aria — Pure Aria getrandom via sys()
+// Safe tier — getrandom(2) is sys().
+//
+// Port status:
+//   libc_getrandom     — PURE sys(GETRANDOM, buf, count, flags)
+//   libc_random_int64  — convenience: returns one random int64
+//   libc_random_bytes  — fill an mmap'd buffer with random bytes
+//
+// Dependencies:
+//   _constants.aria — GRND_RANDOM, GRND_NONBLOCK
+//   _mmap.aria      — libc_mmap_anon, libc_munmap (for convenience funcs)
+//   _alloc.aria     — libc_malloc, libc_release (for convenience funcs)
+//
+// Note: getrandom(2) fills a buffer at a given pointer address.
+//   The low-level libc_getrandom takes a raw pointer (int64) + count.
+//   The convenience libc_random_int64 allocates a temp buffer internally.
+//
+// Usage:
+//   use "../src/_posix_random.aria".*;
+//   use "../src/_constants.aria".*;
+//   int64:val = raw(libc_random_int64());
+
+use "_constants.aria".*;
+use "_mmap.aria".*;
+
+// We need byte-level memory access for reading random bytes from buffer.
+extern func:aria_libc_mem_read_byte = int64(int64:ptr, int64:offset);
+extern func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
+
+// ══════════════════════════════════════════════════════════════════════
+// getrandom — fill buffer with random bytes
+// ══════════════════════════════════════════════════════════════════════
+
+// Low-level: fill buffer at ptr with count random bytes.
+// flags: 0 for /dev/urandom behavior (default, non-blocking after init),
+//        GRND_RANDOM for /dev/random, GRND_NONBLOCK to fail instead of block.
+// Returns number of bytes written on success, negative errno on failure.
+pub func:libc_getrandom = int64(int64:ptr, int64:count, int64:flags) {
+    Result<int64>:r = sys(GETRANDOM, ptr, count, flags);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Convenience: get one random int64 value
+// ══════════════════════════════════════════════════════════════════════
+
+// Returns a random 64-bit integer. Allocates a temporary 8-byte mmap
+// buffer internally, reads getrandom into it, reads the int64, and frees.
+// Returns 0 on failure (unlikely).
+pub func:libc_random_int64 = int64() {
+    // Allocate a page-sized buffer (minimum mmap granularity)
+    int64:buf = libc_mmap_anon(4096i64) ?! 0i64;
+    if (buf == 0i64) { pass(0i64); }
+
+    // Fill first 8 bytes with random data
+    Result<int64>:r = sys(GETRANDOM, buf, 8i64, 0i64);
+    int64:got = r ? -1i64;
+    if (got < 8i64) {
+        drop(libc_munmap(buf, 4096i64));
+        pass(0i64);
+    }
+
+    // Read the 8-byte int64 from the buffer
+    int64:val = aria_libc_mem_read_int64(buf, 0i64);
+
+    // Release the buffer
+    drop(libc_munmap(buf, 4096i64));
+    pass(val);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Convenience: get one random byte (0-255)
+// ══════════════════════════════════════════════════════════════════════
+
+// Returns a random byte value (0-255). Uses a page-sized mmap buffer.
+// Returns -1 on failure.
+pub func:libc_random_byte = int64() {
+    int64:buf = libc_mmap_anon(4096i64) ?! 0i64;
+    if (buf == 0i64) { pass(-1i64); }
+
+    Result<int64>:r = sys(GETRANDOM, buf, 1i64, 0i64);
+    int64:got = r ? -1i64;
+    if (got < 1i64) {
+        drop(libc_munmap(buf, 4096i64));
+        pass(-1i64);
+    }
+
+    int64:val = aria_libc_mem_read_byte(buf, 0i64);
+    drop(libc_munmap(buf, 4096i64));
+    pass(val);
+};

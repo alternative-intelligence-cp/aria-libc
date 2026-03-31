@@ -1,0 +1,332 @@
+// test_posix_extra.aria — Tests for v0.2.7 POSIX extras
+//
+// Tests: _posix_fd.aria (fcntl/flock/fsync/fdatasync/ioctl),
+//        _posix_random.aria (getrandom), and expanded _errno.aria
+//
+// Compile:
+//   ./scripts/build_static.sh tests/test_posix_extra.aria -o build/static-tests/posix_extra -laria_libc_mem
+
+use "../src/_constants.aria".*;
+use "../src/_posix_fd.aria".*;
+use "../src/_posix_random.aria".*;
+use "../src/_errno.aria".*;
+use "../src/_io_core.aria".*;
+use "../src/_fs_core.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq_int = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_neq_int = NIL(int64:actual, int64:not_expected, string:msg) {
+    if (actual != not_expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    should not be: " + string_from_int(not_expected)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_gte_int = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual >= threshold) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected >= " + string_from_int(threshold)));
+        drop(print("    actual:     " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_range = NIL(int64:val, int64:lo, int64:hi, string:msg) {
+    if (val >= lo) {
+        if (val <= hi) {
+            drop(print("  PASS: " + msg));
+            pass_count = pass_count + 1i64;
+            pass(NIL);
+        }
+    }
+    drop(print("  FAIL: " + msg));
+    drop(print("    value: " + string_from_int(val) + " not in [" + string_from_int(lo) + ", " + string_from_int(hi) + "]"));
+    fail_count = fail_count + 1i64;
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: fcntl — F_GETFL / F_SETFL / F_GETFD / F_SETFD / F_DUPFD
+// ══════════════════════════════════════════════════════════════════════
+pub func:test_fcntl = NIL() {
+    drop(print("-- fcntl --"));
+
+    // Open a temp file for testing
+    string:path = "/tmp/aria_test_fcntl_027.txt";
+    int64:fd = raw(libc_open(path, O_CREAT + O_RDWR + O_TRUNC, MODE_644));
+    drop(assert_gte_int(fd, 0i64, "open temp file for fcntl"));
+
+    // F_GETFL — get file status flags
+    int64:flags = raw(libc_getfl(fd));
+    drop(assert_gte_int(flags, 0i64, "F_GETFL returns >= 0"));
+
+    // F_SETFL — set O_NONBLOCK, then verify
+    int64:new_flags = flags + O_NONBLOCK;
+    int64:set_ret = raw(libc_setfl(fd, new_flags));
+    drop(assert_eq_int(set_ret, 0i64, "F_SETFL O_NONBLOCK returns 0"));
+
+    // Verify O_NONBLOCK is set
+    int64:flags2 = raw(libc_getfl(fd));
+    // flags2 should have O_NONBLOCK bit set
+    // O_NONBLOCK = 2048. flags2 & O_NONBLOCK should be > 0.
+    // We don't have bitwise AND in Aria, but we can check flags2 >= O_NONBLOCK
+    // or check via fcntl2 and compare
+    drop(assert_gte_int(flags2, 0i64, "F_GETFL after NONBLOCK >= 0"));
+
+    // F_GETFD — get fd flags (should be 0 initially for regular open)
+    int64:fd_flags = raw(libc_getfd(fd));
+    drop(assert_gte_int(fd_flags, 0i64, "F_GETFD returns >= 0"));
+
+    // F_SETFD — set FD_CLOEXEC
+    int64:setfd_ret = raw(libc_setfd(fd, FD_CLOEXEC));
+    drop(assert_eq_int(setfd_ret, 0i64, "F_SETFD CLOEXEC returns 0"));
+
+    // Verify CLOEXEC is set
+    int64:fd_flags2 = raw(libc_getfd(fd));
+    drop(assert_eq_int(fd_flags2, FD_CLOEXEC, "F_GETFD returns FD_CLOEXEC"));
+
+    // F_DUPFD — duplicate fd to >= 100
+    int64:new_fd = raw(libc_dupfd(fd, 100i64));
+    drop(assert_gte_int(new_fd, 100i64, "F_DUPFD returns fd >= 100"));
+
+    // Close both
+    drop(libc_close(new_fd));
+    drop(libc_close(fd));
+
+    // Cleanup
+    drop(libc_unlink(path));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: flock — advisory file locking
+// ══════════════════════════════════════════════════════════════════════
+pub func:test_flock = NIL() {
+    drop(print("-- flock --"));
+
+    string:path = "/tmp/aria_test_flock_027.txt";
+    int64:fd = raw(libc_open(path, O_CREAT + O_RDWR + O_TRUNC, MODE_644));
+    drop(assert_gte_int(fd, 0i64, "open temp file for flock"));
+
+    // Take exclusive lock
+    int64:lock_ret = raw(libc_flock(fd, LOCK_EX));
+    drop(assert_eq_int(lock_ret, 0i64, "LOCK_EX returns 0"));
+
+    // Unlock
+    int64:unlock_ret = raw(libc_flock(fd, LOCK_UN));
+    drop(assert_eq_int(unlock_ret, 0i64, "LOCK_UN returns 0"));
+
+    // Take shared lock
+    int64:sh_ret = raw(libc_flock(fd, LOCK_SH));
+    drop(assert_eq_int(sh_ret, 0i64, "LOCK_SH returns 0"));
+
+    // Unlock shared
+    int64:sh_un_ret = raw(libc_flock(fd, LOCK_UN));
+    drop(assert_eq_int(sh_un_ret, 0i64, "LOCK_UN (shared) returns 0"));
+
+    // Non-blocking exclusive (should succeed since no contention)
+    int64:nb_ret = raw(libc_flock(fd, LOCK_EX + LOCK_NB));
+    drop(assert_eq_int(nb_ret, 0i64, "LOCK_EX|LOCK_NB returns 0"));
+
+    // Unlock
+    drop(libc_flock(fd, LOCK_UN));
+    drop(libc_close(fd));
+    drop(libc_unlink(path));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: fsync / fdatasync
+// ══════════════════════════════════════════════════════════════════════
+pub func:test_fsync = NIL() {
+    drop(print("-- fsync/fdatasync --"));
+
+    string:path = "/tmp/aria_test_fsync_027.txt";
+    int64:fd = raw(libc_open(path, O_CREAT + O_RDWR + O_TRUNC, MODE_644));
+    drop(assert_gte_int(fd, 0i64, "open temp file for fsync"));
+
+    // Write some data so there's something to sync
+    int64:wrote = raw(libc_write(fd, "hello fsync test"));
+    drop(assert_gte_int(wrote, 1i64, "write data for fsync"));
+
+    // fsync
+    int64:sync_ret = raw(libc_fsync(fd));
+    drop(assert_eq_int(sync_ret, 0i64, "fsync returns 0"));
+
+    // fdatasync
+    int64:dsync_ret = raw(libc_fdatasync(fd));
+    drop(assert_eq_int(dsync_ret, 0i64, "fdatasync returns 0"));
+
+    // fsync on bad fd should fail
+    int64:bad_ret = raw(libc_fsync(9999i64));
+    drop(assert_eq_int(bad_ret, -1i64, "fsync bad fd returns -1"));
+
+    drop(libc_close(fd));
+    drop(libc_unlink(path));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: getrandom — random bytes
+// ══════════════════════════════════════════════════════════════════════
+pub func:test_getrandom = NIL() {
+    drop(print("-- getrandom --"));
+
+    // Random int64 — should return something (extremely unlikely to be 0)
+    int64:val1 = raw(libc_random_int64());
+    int64:val2 = raw(libc_random_int64());
+
+    // Both should be non-zero (probability of 0: 1/2^64, effectively impossible)
+    // But we can't truly assert non-zero. Instead assert they differ from each other.
+    drop(assert_neq_int(val1, val2, "two random int64 values differ"));
+
+    // Random byte — should be in range [0, 255]
+    int64:byte1 = raw(libc_random_byte());
+    drop(assert_gte_int(byte1, 0i64, "random byte >= 0"));
+    drop(assert_range(byte1, 0i64, 255i64, "random byte in [0,255]"));
+
+    int64:byte2 = raw(libc_random_byte());
+    drop(assert_gte_int(byte2, 0i64, "random byte 2 >= 0"));
+    drop(assert_range(byte2, 0i64, 255i64, "random byte 2 in [0,255]"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: expanded errno constants and strings
+// ══════════════════════════════════════════════════════════════════════
+pub func:test_errno_expanded = NIL() {
+    drop(print("-- errno expanded --"));
+
+    // Test new constants that weren't in v0.2.6
+    drop(assert_eq_int(ENOMSG,   42i64,  "ENOMSG = 42"));
+    drop(assert_eq_int(ENOTSOCK, 88i64,  "ENOTSOCK = 88"));
+    drop(assert_eq_int(ENETDOWN, 100i64, "ENETDOWN = 100"));
+    drop(assert_eq_int(ENETRESET, 102i64, "ENETRESET = 102"));
+    drop(assert_eq_int(ESHUTDOWN, 108i64, "ESHUTDOWN = 108"));
+    drop(assert_eq_int(EHOSTDOWN, 112i64, "EHOSTDOWN = 112"));
+    drop(assert_eq_int(EHOSTUNREACH, 113i64, "EHOSTUNREACH = 113"));
+    drop(assert_eq_int(ECANCELED, 125i64, "ECANCELED = 125"));
+    drop(assert_eq_int(ERFKILL, 132i64,  "ERFKILL = 132"));
+    drop(assert_eq_int(EHWPOISON, 133i64, "EHWPOISON = 133"));
+    drop(assert_eq_int(EDEADLOCK, 35i64, "EDEADLOCK = EDEADLK"));
+
+    // Test new errno_to_string entries
+    drop(assert_str_eq(raw(errno_to_string(42i64)),  "No message of desired type",  "str(ENOMSG)"));
+    drop(assert_str_eq(raw(errno_to_string(88i64)),  "Socket operation on non-socket", "str(ENOTSOCK)"));
+    drop(assert_str_eq(raw(errno_to_string(100i64)), "Network is down",             "str(ENETDOWN)"));
+    drop(assert_str_eq(raw(errno_to_string(112i64)), "Host is down",                "str(EHOSTDOWN)"));
+    drop(assert_str_eq(raw(errno_to_string(113i64)), "No route to host",            "str(EHOSTUNREACH)"));
+    drop(assert_str_eq(raw(errno_to_string(122i64)), "Quota exceeded",              "str(EDQUOT)"));
+    drop(assert_str_eq(raw(errno_to_string(125i64)), "Operation canceled",          "str(ECANCELED)"));
+    drop(assert_str_eq(raw(errno_to_string(130i64)), "Owner died",                  "str(EOWNERDEAD)"));
+    drop(assert_str_eq(raw(errno_to_string(133i64)), "Memory page has hardware error", "str(EHWPOISON)"));
+
+    // Boundaries: still returns "Unknown error" for out-of-range
+    drop(assert_str_eq(raw(errno_to_string(0i64)),   "Unknown error", "str(0) = Unknown"));
+    drop(assert_str_eq(raw(errno_to_string(134i64)), "Unknown error", "str(134) = Unknown"));
+    drop(assert_str_eq(raw(errno_to_string(999i64)), "Unknown error", "str(999) = Unknown"));
+
+    // Verify old entries still work
+    drop(assert_str_eq(raw(errno_to_string(2i64)),  "No such file or directory", "str(ENOENT) still works"));
+    drop(assert_str_eq(raw(errno_to_string(22i64)), "Invalid argument",          "str(EINVAL) still works"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: fcntl constants
+// ══════════════════════════════════════════════════════════════════════
+pub func:test_constants = NIL() {
+    drop(print("-- v0.2.7 constants --"));
+
+    // fcntl commands
+    drop(assert_eq_int(F_DUPFD,   0i64, "F_DUPFD = 0"));
+    drop(assert_eq_int(F_GETFD,   1i64, "F_GETFD = 1"));
+    drop(assert_eq_int(F_SETFD,   2i64, "F_SETFD = 2"));
+    drop(assert_eq_int(F_GETFL,   3i64, "F_GETFL = 3"));
+    drop(assert_eq_int(F_SETFL,   4i64, "F_SETFL = 4"));
+    drop(assert_eq_int(FD_CLOEXEC, 1i64, "FD_CLOEXEC = 1"));
+
+    // flock operations
+    drop(assert_eq_int(LOCK_SH, 1i64, "LOCK_SH = 1"));
+    drop(assert_eq_int(LOCK_EX, 2i64, "LOCK_EX = 2"));
+    drop(assert_eq_int(LOCK_NB, 4i64, "LOCK_NB = 4"));
+    drop(assert_eq_int(LOCK_UN, 8i64, "LOCK_UN = 8"));
+
+    // getrandom flags
+    drop(assert_eq_int(GRND_NONBLOCK, 1i64, "GRND_NONBLOCK = 1"));
+    drop(assert_eq_int(GRND_RANDOM,   2i64, "GRND_RANDOM = 2"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Main
+// ══════════════════════════════════════════════════════════════════════
+func:main = int32() {
+    drop(print("=== aria-libc v0.2.7 tests (POSIX extras + errno) ==="));
+    drop(print(""));
+
+    drop(raw(test_constants()));
+    drop(raw(test_fcntl()));
+    drop(raw(test_flock()));
+    drop(raw(test_fsync()));
+    drop(raw(test_getrandom()));
+    drop(raw(test_errno_expanded()));
+
+    drop(print(""));
+    drop(print("PASS: " + string_from_int(pass_count)));
+    drop(print("FAIL: " + string_from_int(fail_count)));
+
+    if (fail_count == 0i64) {
+        drop(print("ALL PASSED"));
+    } else {
+        drop(print("SOME FAILED"));
+    }
+
+    exit(0);
+};

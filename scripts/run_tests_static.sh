@@ -59,6 +59,8 @@ declare -a ALL_TESTS=(
     "net_pure:tests/test_net_pure.aria:-laria_libc_mem"
     # v0.2.6: Pure Aria sys() process management
     "proc_pure:tests/test_proc_pure.aria:-laria_libc_mem"
+    # v0.2.7: POSIX extras + errno table
+    "posix_extra:tests/test_posix_extra.aria:-laria_libc_mem"
 )
 
 # ── Filter tests if args provided ───────────────────────────────────

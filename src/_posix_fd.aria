@@ -1,0 +1,133 @@
+// _posix_fd.aria — Pure Aria fd operations via sys()
+// Safe tier — fcntl, flock, fsync, fdatasync are all sys().
+// ioctl is also safe tier on Linux.
+//
+// Port status:
+//   libc_fcntl       — PURE sys(FCNTL, fd, cmd, arg)
+//   libc_fcntl2      — PURE sys(FCNTL, fd, cmd) — 2-arg form
+//   libc_flock       — PURE sys(FLOCK, fd, operation)
+//   libc_fsync       — PURE sys(FSYNC, fd)
+//   libc_fdatasync   — PURE sys(FDATASYNC, fd)
+//   libc_ioctl       — PURE sys(IOCTL, fd, request, arg)
+//   libc_ioctl2      — PURE sys(IOCTL, fd, request) — 2-arg form
+//
+// Dependencies:
+//   _constants.aria — F_GETFL, F_SETFL, LOCK_*, etc.
+//
+// Usage:
+//   use "../src/_posix_fd.aria".*;
+//   use "../src/_constants.aria".*;
+//   int64:flags = raw(libc_fcntl2(fd, F_GETFL));
+
+use "_constants.aria".*;
+
+// ══════════════════════════════════════════════════════════════════════
+// fcntl — file descriptor control
+// ══════════════════════════════════════════════════════════════════════
+
+// fcntl with 3 args (fd, cmd, arg). Used for F_SETFL, F_SETFD, F_DUPFD, etc.
+// Returns the result on success, negative errno on failure.
+pub func:libc_fcntl = int64(int64:fd, int64:cmd, int64:arg) {
+    Result<int64>:r = sys(FCNTL, fd, cmd, arg);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// fcntl with 2 args (fd, cmd). Used for F_GETFL, F_GETFD.
+// Returns the value on success, negative errno on failure.
+pub func:libc_fcntl2 = int64(int64:fd, int64:cmd) {
+    Result<int64>:r = sys(FCNTL, fd, cmd);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// ── Convenience wrappers ────────────────────────────────────────────
+
+// Get file status flags (O_RDONLY, O_NONBLOCK, etc.)
+pub func:libc_getfl = int64(int64:fd) {
+    Result<int64>:r = sys(FCNTL, fd, F_GETFL);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// Set file status flags.
+pub func:libc_setfl = int64(int64:fd, int64:flags) {
+    Result<int64>:r = sys(FCNTL, fd, F_SETFL, flags);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// Get fd flags (FD_CLOEXEC).
+pub func:libc_getfd = int64(int64:fd) {
+    Result<int64>:r = sys(FCNTL, fd, F_GETFD);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// Set fd flags (FD_CLOEXEC).
+pub func:libc_setfd = int64(int64:fd, int64:flags) {
+    Result<int64>:r = sys(FCNTL, fd, F_SETFD, flags);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// Duplicate fd (like dup but allows specifying minimum fd number).
+pub func:libc_dupfd = int64(int64:fd, int64:min_fd) {
+    Result<int64>:r = sys(FCNTL, fd, F_DUPFD, min_fd);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// flock — advisory file locking
+// ══════════════════════════════════════════════════════════════════════
+
+// Apply or remove an advisory lock on an open file.
+// operation: LOCK_SH, LOCK_EX, LOCK_UN (optionally OR'd with LOCK_NB)
+// Returns 0 on success, negative errno on failure.
+pub func:libc_flock = int64(int64:fd, int64:operation) {
+    Result<int64>:r = sys(FLOCK, fd, operation);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// fsync / fdatasync — flush file data to disk
+// ══════════════════════════════════════════════════════════════════════
+
+// Flush all modified data AND metadata to disk.
+// Returns 0 on success, negative errno on failure.
+pub func:libc_fsync = int64(int64:fd) {
+    Result<int64>:r = sys(FSYNC, fd);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// Flush modified data to disk (not necessarily metadata).
+// Faster than fsync when metadata changes aren't critical.
+// Returns 0 on success, negative errno on failure.
+pub func:libc_fdatasync = int64(int64:fd) {
+    Result<int64>:r = sys(FDATASYNC, fd);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// ioctl — device control
+// ══════════════════════════════════════════════════════════════════════
+
+// Generic ioctl with 3 args (fd, request, arg).
+// arg is typically a pointer to a struct (passed as int64).
+// Returns result on success, negative errno on failure.
+pub func:libc_ioctl = int64(int64:fd, int64:request, int64:arg) {
+    Result<int64>:r = sys(IOCTL, fd, request, arg);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// ioctl with 2 args (fd, request). Some ioctls don't need an arg.
+pub func:libc_ioctl2 = int64(int64:fd, int64:request) {
+    Result<int64>:r = sys(IOCTL, fd, request);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};

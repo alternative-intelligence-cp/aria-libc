@@ -1,11 +1,14 @@
-// _errno.aria — POSIX errno constants and message table
+// _errno.aria — POSIX errno constants and message table (complete)
 // Pure Aria — no C shim required.
+//
+// All 133 Linux errno values (1-133) plus aliases.
+// Reference: /usr/include/asm-generic/errno-base.h + errno.h
 //
 // Usage:
 //   use "../src/_errno.aria".*;
 //   string:msg = errno_to_string(2i64);  // "No such file or directory"
 
-// ── Errno constants ─────────────────────────────────────────────────
+// ── Errno constants (1-34: base) ────────────────────────────────────
 int64:EPERM   = 1i64;    // Operation not permitted
 int64:ENOENT  = 2i64;    // No such file or directory
 int64:ESRCH   = 3i64;    // No such process
@@ -40,31 +43,121 @@ int64:EMLINK  = 31i64;   // Too many links
 int64:EPIPE   = 32i64;   // Broken pipe
 int64:EDOM    = 33i64;   // Math argument out of domain
 int64:ERANGE  = 34i64;   // Math result not representable
-int64:EDEADLK = 35i64;   // Resource deadlock would occur
-int64:ENAMETOOLONG = 36i64;  // File name too long
-int64:ENOLCK  = 37i64;   // No record locks available
-int64:ENOSYS  = 38i64;   // Function not implemented
-int64:ENOTEMPTY = 39i64;  // Directory not empty
-int64:ELOOP   = 40i64;   // Too many symbolic links
-int64:ENODATA = 61i64;   // No data available
-int64:ETIME   = 62i64;   // Timer expired
-int64:EOVERFLOW = 75i64; // Value too large for data type
-int64:EILSEQ  = 84i64;   // Illegal byte sequence
+
+// ── Errno constants (35-40) ─────────────────────────────────────────
+int64:EDEADLK      = 35i64;   // Resource deadlock would occur
+int64:ENAMETOOLONG  = 36i64;   // File name too long
+int64:ENOLCK        = 37i64;   // No record locks available
+int64:ENOSYS        = 38i64;   // Function not implemented
+int64:ENOTEMPTY     = 39i64;   // Directory not empty
+int64:ELOOP         = 40i64;   // Too many symbolic links
+
+// ── Errno constants (42-57) ─────────────────────────────────────────
+int64:ENOMSG        = 42i64;   // No message of desired type
+int64:EIDRM         = 43i64;   // Identifier removed
+int64:ECHRNG        = 44i64;   // Channel number out of range
+int64:EL2NSYNC      = 45i64;   // Level 2 not synchronized
+int64:EL3HLT        = 46i64;   // Level 3 halted
+int64:EL3RST        = 47i64;   // Level 3 reset
+int64:ELNRNG        = 48i64;   // Link number out of range
+int64:EUNATCH       = 49i64;   // Protocol driver not attached
+int64:ENOCSI        = 50i64;   // No CSI structure available
+int64:EL2HLT        = 51i64;   // Level 2 halted
+int64:EBADE         = 52i64;   // Invalid exchange
+int64:EBADR         = 53i64;   // Invalid request descriptor
+int64:EXFULL        = 54i64;   // Exchange full
+int64:ENOANO        = 55i64;   // No anode
+int64:EBADRQC       = 56i64;   // Invalid request code
+int64:EBADSLT       = 57i64;   // Invalid slot
+
+// ── Errno constants (59-76) ─────────────────────────────────────────
+int64:EBFONT        = 59i64;   // Bad font file format
+int64:ENOSTR        = 60i64;   // Device not a stream
+int64:ENODATA       = 61i64;   // No data available
+int64:ETIME         = 62i64;   // Timer expired
+int64:ENOSR         = 63i64;   // Out of streams resources
+int64:ENONET        = 64i64;   // Machine is not on the network
+int64:ENOPKG        = 65i64;   // Package not installed
+int64:EREMOTE       = 66i64;   // Object is remote
+int64:ENOLINK       = 67i64;   // Link has been severed
+int64:EADV          = 68i64;   // Advertise error
+int64:ESRMNT        = 69i64;   // Srmount error
+int64:ECOMM         = 70i64;   // Communication error on send
+int64:EPROTO        = 71i64;   // Protocol error
+int64:EMULTIHOP     = 72i64;   // Multihop attempted
+int64:EDOTDOT       = 73i64;   // RFS specific error
+int64:EBADMSG       = 74i64;   // Not a data message
+int64:EOVERFLOW     = 75i64;   // Value too large for data type
+int64:ENOTUNIQ      = 76i64;   // Name not unique on network
+
+// ── Errno constants (77-88) ─────────────────────────────────────────
+int64:EBADFD        = 77i64;   // File descriptor in bad state
+int64:EREMCHG       = 78i64;   // Remote address changed
+int64:ELIBACC       = 79i64;   // Cannot access a needed shared library
+int64:ELIBBAD       = 80i64;   // Accessing a corrupted shared library
+int64:ELIBSCN       = 81i64;   // .lib section in a.out corrupted
+int64:ELIBMAX       = 82i64;   // Linking too many shared libraries
+int64:ELIBEXEC      = 83i64;   // Cannot exec a shared library directly
+int64:EILSEQ        = 84i64;   // Illegal byte sequence
+int64:ERESTART      = 85i64;   // Interrupted syscall should be restarted
+int64:ESTRPIPE      = 86i64;   // Streams pipe error
+int64:EUSERS        = 87i64;   // Too many users
+int64:ENOTSOCK      = 88i64;   // Socket operation on non-socket
+
+// ── Errno constants (89-104) ────────────────────────────────────────
+int64:EDESTADDRREQ  = 89i64;   // Destination address required
+int64:EMSGSIZE      = 90i64;   // Message too long
+int64:EPROTOTYPE    = 91i64;   // Protocol wrong type for socket
+int64:ENOPROTOOPT   = 92i64;   // Protocol not available
+int64:EPROTONOSUPPORT = 93i64; // Protocol not supported
+int64:ESOCKTNOSUPPORT = 94i64; // Socket type not supported
+int64:EOPNOTSUPP    = 95i64;   // Operation not supported on transport endpoint
+int64:EPFNOSUPPORT  = 96i64;   // Protocol family not supported
+int64:EAFNOSUPPORT  = 97i64;   // Address family not supported by protocol
 int64:EADDRINUSE    = 98i64;   // Address already in use
 int64:EADDRNOTAVAIL = 99i64;   // Cannot assign requested address
+int64:ENETDOWN      = 100i64;  // Network is down
 int64:ENETUNREACH   = 101i64;  // Network is unreachable
+int64:ENETRESET     = 102i64;  // Connection dropped on network reset
 int64:ECONNABORTED  = 103i64;  // Connection aborted
 int64:ECONNRESET    = 104i64;  // Connection reset by peer
+
+// ── Errno constants (105-125) ───────────────────────────────────────
 int64:ENOBUFS       = 105i64;  // No buffer space available
 int64:EISCONN       = 106i64;  // Socket already connected
 int64:ENOTCONN      = 107i64;  // Socket not connected
+int64:ESHUTDOWN     = 108i64;  // Cannot send after shutdown
+int64:ETOOMANYREFS  = 109i64;  // Too many references
 int64:ETIMEDOUT     = 110i64;  // Connection timed out
 int64:ECONNREFUSED  = 111i64;  // Connection refused
+int64:EHOSTDOWN     = 112i64;  // Host is down
+int64:EHOSTUNREACH  = 113i64;  // No route to host
 int64:EALREADY      = 114i64;  // Operation already in progress
 int64:EINPROGRESS   = 115i64;  // Operation now in progress
+int64:ESTALE        = 116i64;  // Stale file handle
+int64:EUCLEAN       = 117i64;  // Structure needs cleaning
+int64:ENOTNAM       = 118i64;  // Not a XENIX named type file
+int64:ENAVAIL       = 119i64;  // No XENIX semaphores available
+int64:EISNAM        = 120i64;  // Is a named type file
+int64:EREMOTEIO     = 121i64;  // Remote I/O error
+int64:EDQUOT        = 122i64;  // Quota exceeded
+int64:ENOMEDIUM     = 123i64;  // No medium found
+int64:EMEDIUMTYPE   = 124i64;  // Wrong medium type
+int64:ECANCELED     = 125i64;  // Operation canceled
 
-// Alias
-int64:EWOULDBLOCK = 11i64;  // Same as EAGAIN
+// ── Errno constants (126-133) ───────────────────────────────────────
+int64:ENOKEY        = 126i64;  // Required key not available
+int64:EKEYEXPIRED   = 127i64;  // Key has expired
+int64:EKEYREVOKED   = 128i64;  // Key has been revoked
+int64:EKEYREJECTED  = 129i64;  // Key was rejected by service
+int64:EOWNERDEAD    = 130i64;  // Owner died
+int64:ENOTRECOVERABLE = 131i64; // State not recoverable
+int64:ERFKILL       = 132i64;  // Operation not possible due to RF-kill
+int64:EHWPOISON     = 133i64;  // Memory page has hardware error
+
+// ── Aliases ─────────────────────────────────────────────────────────
+int64:EWOULDBLOCK   = 11i64;   // Same as EAGAIN
+int64:EDEADLOCK     = 35i64;   // Same as EDEADLK
 
 // ── errno → string ──────────────────────────────────────────────────
 // Syscall errors return negative values: -errno. To get the errno
@@ -111,22 +204,97 @@ pub func:errno_to_string = string(int64:e) {
     if (e == 38i64) { pass("Function not implemented"); }
     if (e == 39i64) { pass("Directory not empty"); }
     if (e == 40i64) { pass("Too many levels of symbolic links"); }
+    if (e == 42i64) { pass("No message of desired type"); }
+    if (e == 43i64) { pass("Identifier removed"); }
+    if (e == 44i64) { pass("Channel number out of range"); }
+    if (e == 45i64) { pass("Level 2 not synchronized"); }
+    if (e == 46i64) { pass("Level 3 halted"); }
+    if (e == 47i64) { pass("Level 3 reset"); }
+    if (e == 48i64) { pass("Link number out of range"); }
+    if (e == 49i64) { pass("Protocol driver not attached"); }
+    if (e == 50i64) { pass("No CSI structure available"); }
+    if (e == 51i64) { pass("Level 2 halted"); }
+    if (e == 52i64) { pass("Invalid exchange"); }
+    if (e == 53i64) { pass("Invalid request descriptor"); }
+    if (e == 54i64) { pass("Exchange full"); }
+    if (e == 55i64) { pass("No anode"); }
+    if (e == 56i64) { pass("Invalid request code"); }
+    if (e == 57i64) { pass("Invalid slot"); }
+    if (e == 59i64) { pass("Bad font file format"); }
+    if (e == 60i64) { pass("Device not a stream"); }
     if (e == 61i64) { pass("No data available"); }
     if (e == 62i64) { pass("Timer expired"); }
+    if (e == 63i64) { pass("Out of streams resources"); }
+    if (e == 64i64) { pass("Machine is not on the network"); }
+    if (e == 65i64) { pass("Package not installed"); }
+    if (e == 66i64) { pass("Object is remote"); }
+    if (e == 67i64) { pass("Link has been severed"); }
+    if (e == 68i64) { pass("Advertise error"); }
+    if (e == 69i64) { pass("Srmount error"); }
+    if (e == 70i64) { pass("Communication error on send"); }
+    if (e == 71i64) { pass("Protocol error"); }
+    if (e == 72i64) { pass("Multihop attempted"); }
+    if (e == 73i64) { pass("RFS specific error"); }
+    if (e == 74i64) { pass("Not a data message"); }
     if (e == 75i64) { pass("Value too large for defined data type"); }
+    if (e == 76i64) { pass("Name not unique on network"); }
+    if (e == 77i64) { pass("File descriptor in bad state"); }
+    if (e == 78i64) { pass("Remote address changed"); }
+    if (e == 79i64) { pass("Cannot access a needed shared library"); }
+    if (e == 80i64) { pass("Accessing a corrupted shared library"); }
+    if (e == 81i64) { pass(".lib section in a.out corrupted"); }
+    if (e == 82i64) { pass("Linking too many shared libraries"); }
+    if (e == 83i64) { pass("Cannot exec a shared library directly"); }
     if (e == 84i64) { pass("Invalid or incomplete multibyte or wide character"); }
+    if (e == 85i64) { pass("Interrupted syscall should be restarted"); }
+    if (e == 86i64) { pass("Streams pipe error"); }
+    if (e == 87i64) { pass("Too many users"); }
+    if (e == 88i64) { pass("Socket operation on non-socket"); }
+    if (e == 89i64) { pass("Destination address required"); }
+    if (e == 90i64) { pass("Message too long"); }
+    if (e == 91i64) { pass("Protocol wrong type for socket"); }
+    if (e == 92i64) { pass("Protocol not available"); }
+    if (e == 93i64) { pass("Protocol not supported"); }
+    if (e == 94i64) { pass("Socket type not supported"); }
+    if (e == 95i64) { pass("Operation not supported on transport endpoint"); }
+    if (e == 96i64) { pass("Protocol family not supported"); }
+    if (e == 97i64) { pass("Address family not supported by protocol"); }
     if (e == 98i64)  { pass("Address already in use"); }
     if (e == 99i64)  { pass("Cannot assign requested address"); }
+    if (e == 100i64) { pass("Network is down"); }
     if (e == 101i64) { pass("Network is unreachable"); }
+    if (e == 102i64) { pass("Connection dropped on network reset"); }
     if (e == 103i64) { pass("Software caused connection abort"); }
     if (e == 104i64) { pass("Connection reset by peer"); }
     if (e == 105i64) { pass("No buffer space available"); }
     if (e == 106i64) { pass("Transport endpoint is already connected"); }
     if (e == 107i64) { pass("Transport endpoint is not connected"); }
+    if (e == 108i64) { pass("Cannot send after shutdown"); }
+    if (e == 109i64) { pass("Too many references"); }
     if (e == 110i64) { pass("Connection timed out"); }
     if (e == 111i64) { pass("Connection refused"); }
+    if (e == 112i64) { pass("Host is down"); }
+    if (e == 113i64) { pass("No route to host"); }
     if (e == 114i64) { pass("Operation already in progress"); }
     if (e == 115i64) { pass("Operation now in progress"); }
+    if (e == 116i64) { pass("Stale file handle"); }
+    if (e == 117i64) { pass("Structure needs cleaning"); }
+    if (e == 118i64) { pass("Not a XENIX named type file"); }
+    if (e == 119i64) { pass("No XENIX semaphores available"); }
+    if (e == 120i64) { pass("Is a named type file"); }
+    if (e == 121i64) { pass("Remote I/O error"); }
+    if (e == 122i64) { pass("Quota exceeded"); }
+    if (e == 123i64) { pass("No medium found"); }
+    if (e == 124i64) { pass("Wrong medium type"); }
+    if (e == 125i64) { pass("Operation canceled"); }
+    if (e == 126i64) { pass("Required key not available"); }
+    if (e == 127i64) { pass("Key has expired"); }
+    if (e == 128i64) { pass("Key has been revoked"); }
+    if (e == 129i64) { pass("Key was rejected by service"); }
+    if (e == 130i64) { pass("Owner died"); }
+    if (e == 131i64) { pass("State not recoverable"); }
+    if (e == 132i64) { pass("Operation not possible due to RF-kill"); }
+    if (e == 133i64) { pass("Memory page has hardware error"); }
     pass("Unknown error");
 };
 

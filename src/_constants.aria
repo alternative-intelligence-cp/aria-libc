@@ -177,6 +177,42 @@ int64:SIGTSTP   = 20i64;
 int64:WNOHANG   = 1i64;
 int64:WUNTRACED = 2i64;
 
+// ══════════════════════════════════════════════════════════════════════
+// v0.2.7: POSIX Extras
+// ══════════════════════════════════════════════════════════════════════
+
+// ── fcntl commands (fcntl.h, for sys(FCNTL)) ────────────────────────
+int64:F_DUPFD    = 0i64;    // Duplicate fd
+int64:F_GETFD    = 1i64;    // Get fd flags
+int64:F_SETFD    = 2i64;    // Set fd flags
+int64:F_GETFL    = 3i64;    // Get file status flags
+int64:F_SETFL    = 4i64;    // Set file status flags
+int64:F_GETLK    = 5i64;    // Get record lock
+int64:F_SETLK    = 6i64;    // Set record lock (non-blocking)
+int64:F_SETLKW   = 7i64;    // Set record lock (wait)
+int64:F_DUPFD_CLOEXEC = 1030i64;  // Duplicate fd with CLOEXEC
+
+// ── fcntl fd flags ──────────────────────────────────────────────────
+int64:FD_CLOEXEC = 1i64;    // Close-on-exec flag
+
+// ── flock operations (sys/file.h, for sys(FLOCK)) ───────────────────
+int64:LOCK_SH = 1i64;    // Shared lock
+int64:LOCK_EX = 2i64;    // Exclusive lock
+int64:LOCK_NB = 4i64;    // Non-blocking (OR with SH or EX)
+int64:LOCK_UN = 8i64;    // Unlock
+
+// ── getrandom flags (linux/random.h) ────────────────────────────────
+int64:GRND_NONBLOCK = 1i64;    // Don't block if entropy pool not initialized
+int64:GRND_RANDOM   = 2i64;    // Use /dev/random instead of /dev/urandom
+
+// ── ioctl common request codes (asm-generic/ioctls.h) ───────────────
+int64:TCGETS     = 21505i64;   // 0x5401 — Get terminal attributes
+int64:TCSETS     = 21506i64;   // 0x5402 — Set terminal attributes
+int64:TIOCGWINSZ = 21523i64;   // 0x5413 — Get window size
+int64:TIOCSWINSZ = 21524i64;   // 0x5414 — Set window size
+int64:FIONREAD   = 21531i64;   // 0x541B — Bytes available to read
+int64:FIONBIO    = 21537i64;   // 0x5421 — Set/clear non-blocking
+
 // ── pipe2 flags ─────────────────────────────────────────────────────
 int64:O_CLOEXEC_PIPE = 524288i64;  // O_CLOEXEC = 0x80000 = 524288
 
