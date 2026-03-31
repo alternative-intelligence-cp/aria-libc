@@ -1,0 +1,179 @@
+// _str_buf.aria — Pure Aria string buffer operations
+// Uses mem shim for byte access and pure Aria allocator for memory.
+//
+// Port status (replaces C string shim equivalents):
+//   libc_substring_pure — PURE Aria (extract substring)
+//   libc_strdup_pure    — PURE Aria (duplicate string to raw buffer)
+//   libc_strcpy_to_pure — PURE Aria (copy string into raw buffer)
+//   libc_strncpy_to_pure — PURE Aria (bounded copy)
+//   libc_strcat_to_pure — PURE Aria (append to raw buffer)
+//   libc_string_from_ptr_pure — reads C string from raw pointer → Aria string
+//
+// Dependencies:
+//   _alloc.aria — libc_malloc, libc_release (for duplicate/substring)
+//   _str_parse.aria — libc_strlen_pure
+//   aria_libc_mem (C shim) — string_byte_at, write_byte, read_string
+//
+// Usage:
+//   use "../src/_str_buf.aria".*;
+//   string:sub = raw(libc_substring_pure("hello world", 6i64, 5i64)); // "world"
+
+use "_alloc.aria".*;
+use "_str_parse.aria".*;
+
+// ── Externs from mem shim ───────────────────────────────────────────
+extern func:aria_libc_mem_string_byte_at = int64(string:s, int64:offset);
+extern func:aria_libc_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_libc_mem_read_byte = int64(int64:ptr, int64:offset);
+extern func:aria_libc_mem_read_string = string(int64:ptr, int64:max_len);
+
+// ══════════════════════════════════════════════════════════════════════
+// substring — extract a substring as a new Aria string
+// ══════════════════════════════════════════════════════════════════════
+
+// Extract len bytes starting at position start from string s.
+// Returns the substring as a new Aria string.
+// Returns "" if start is out of range or len is 0.
+pub func:libc_substring_pure = string(string:s, int64:start, int64:len) {
+    if (len <= 0i64) { pass(""); }
+    int64:slen = raw(libc_strlen_pure(s));
+    if (start < 0i64) { pass(""); }
+    if (start >= slen) { pass(""); }
+
+    // Clamp len to available
+    int64:avail = slen - start;
+    int64:actual = len;
+    if (actual > avail) { actual = avail; }
+
+    // Allocate buffer: actual + 1 for null terminator
+    int64:buf = libc_malloc(actual + 1i64) ?! 0i64;
+    if (buf == 0i64) { pass(""); }
+
+    // Copy bytes
+    int64:i = 0i64;
+    while (1 == 1) {
+        if (i >= actual) { break; }
+        int64:b = aria_libc_mem_string_byte_at(s, start + i);
+        drop(aria_libc_mem_write_byte(buf, i, b));
+        i = i + 1i64;
+    }
+    // Null-terminate
+    drop(aria_libc_mem_write_byte(buf, actual, 0i64));
+
+    // Convert raw buffer to Aria string
+    string:result = aria_libc_mem_read_string(buf, actual);
+
+    // Release the temp buffer
+    drop(libc_release(buf));
+    pass(result);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// strdup — duplicate a string into a malloc'd buffer
+// ══════════════════════════════════════════════════════════════════════
+
+// Duplicate string into a newly allocated buffer.
+// Returns the raw pointer (int64). Caller must libc_release() it.
+// Returns 0 on allocation failure.
+pub func:libc_strdup_pure = int64(string:s) {
+    int64:len = raw(libc_strlen_pure(s));
+    int64:buf = libc_malloc(len + 1i64) ?! 0i64;
+    if (buf == 0i64) { pass(0i64); }
+
+    int64:i = 0i64;
+    while (1 == 1) {
+        if (i >= len) { break; }
+        int64:b = aria_libc_mem_string_byte_at(s, i);
+        drop(aria_libc_mem_write_byte(buf, i, b));
+        i = i + 1i64;
+    }
+    drop(aria_libc_mem_write_byte(buf, len, 0i64));
+    pass(buf);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// strcpy_to — copy string into a raw buffer at dst pointer
+// ══════════════════════════════════════════════════════════════════════
+
+// Copy all bytes of src (including null terminator) into buffer at dst.
+// dst must be large enough. Returns the number of bytes copied (excluding null).
+pub func:libc_strcpy_to_pure = int64(int64:dst, string:src) {
+    int64:len = raw(libc_strlen_pure(src));
+    int64:i = 0i64;
+    while (1 == 1) {
+        if (i >= len) { break; }
+        int64:b = aria_libc_mem_string_byte_at(src, i);
+        drop(aria_libc_mem_write_byte(dst, i, b));
+        i = i + 1i64;
+    }
+    drop(aria_libc_mem_write_byte(dst, len, 0i64));
+    pass(len);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// strncpy_to — bounded copy into raw buffer
+// ══════════════════════════════════════════════════════════════════════
+
+// Copy at most n bytes of src into buffer at dst.
+// If src is shorter than n, pads remaining bytes with 0.
+// Returns the number of bytes written.
+pub func:libc_strncpy_to_pure = int64(int64:dst, string:src, int64:n) {
+    if (n <= 0i64) { pass(0i64); }
+    int64:slen = raw(libc_strlen_pure(src));
+    int64:i = 0i64;
+    while (1 == 1) {
+        if (i >= n) { pass(n); }
+        if (i < slen) {
+            int64:b = aria_libc_mem_string_byte_at(src, i);
+            drop(aria_libc_mem_write_byte(dst, i, b));
+        } else {
+            drop(aria_libc_mem_write_byte(dst, i, 0i64));
+        }
+        i = i + 1i64;
+    }
+    pass(n);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// strcat_to — append string to buffer at dst
+// ══════════════════════════════════════════════════════════════════════
+
+// Append src to the null-terminated string already in buffer at dst.
+// dst_size is the total buffer size (for bounds checking).
+// Returns the new total length, or -1 on overflow.
+pub func:libc_strcat_to_pure = int64(int64:dst, int64:dst_size, string:src) {
+    // Find end of existing string in dst
+    int64:dst_len = 0i64;
+    while (1 == 1) {
+        if (dst_len >= dst_size) { pass(-1i64); }
+        int64:b = aria_libc_mem_read_byte(dst, dst_len);
+        if (b == 0i64) { break; }
+        dst_len = dst_len + 1i64;
+    }
+
+    int64:src_len = raw(libc_strlen_pure(src));
+    int64:total = dst_len + src_len;
+    if (total >= dst_size) { pass(-1i64); }  // would overflow
+
+    // Copy src bytes after existing content
+    int64:i = 0i64;
+    while (1 == 1) {
+        if (i >= src_len) { break; }
+        int64:b = aria_libc_mem_string_byte_at(src, i);
+        drop(aria_libc_mem_write_byte(dst, dst_len + i, b));
+        i = i + 1i64;
+    }
+    drop(aria_libc_mem_write_byte(dst, total, 0i64));
+    pass(total);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// string_from_ptr — read null-terminated C string from raw pointer
+// ══════════════════════════════════════════════════════════════════════
+
+// Read a null-terminated string from raw pointer, up to max_len bytes.
+// Returns an Aria string. Delegates to mem shim's read_string.
+pub func:libc_string_from_ptr_pure = string(int64:ptr, int64:max_len) {
+    string:result = aria_libc_mem_read_string(ptr, max_len);
+    pass(result);
+};

@@ -1,0 +1,93 @@
+// _str_parse.aria — Pure Aria string length and numeric parsing
+// Uses aria_libc_mem_string_byte_at from C mem shim for byte-level access.
+//
+// Port status (replaces C string shim equivalents):
+//   libc_strlen_pure — PURE Aria (via byte scanning)
+//   libc_strtol_pure — PURE Aria (string → int64)
+//
+// Note: string_from_int is already a compiler builtin — no wrapper needed.
+//       string_to_float (strtod) stays in C shim — IEEE754 parsing is complex.
+//       string_from_float (snprintf) stays in C shim — float formatting is complex.
+//
+// Dependencies:
+//   aria_libc_mem (C shim) — string_byte_at for reading individual characters
+//   _str_char.aria — libc_is_digit, libc_is_space for parsing
+//
+// Usage:
+//   use "../src/_str_parse.aria".*;
+//   int64:len = raw(libc_strlen_pure("hello"));  // 5
+//   int64:val = raw(libc_strtol_pure("42"));      // 42
+
+use "_str_char.aria".*;
+
+// ── Extern: byte-level string access from mem shim ──────────────────
+extern func:aria_libc_mem_string_byte_at = int64(string:s, int64:offset);
+
+// ══════════════════════════════════════════════════════════════════════
+// String length — count bytes until null terminator
+// ══════════════════════════════════════════════════════════════════════
+
+// Returns the length of a string in bytes.
+// Scans for the null terminator (byte value 0).
+pub func:libc_strlen_pure = int64(string:s) {
+    int64:i = 0i64;
+    int64:max_scan = 1048576i64;  // 1MB safety limit
+    while (1 == 1) {
+        if (i >= max_scan) { pass(i); }
+        int64:b = aria_libc_mem_string_byte_at(s, i);
+        if (b == 0i64) { pass(i); }
+        if (b < 0i64) { pass(i); }  // error / out of bounds
+        i = i + 1i64;
+    }
+    pass(i);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// String to integer — parse decimal integer from string
+// ══════════════════════════════════════════════════════════════════════
+
+// Parse a decimal integer from a string. Handles optional leading
+// whitespace and optional +/- sign. Stops at first non-digit.
+// Returns 0 for empty/invalid strings (matches strtol behavior).
+pub func:libc_strtol_pure = int64(string:s) {
+    int64:len = string_length(s);
+    if (len == 0i64) { pass(0i64); }
+
+    int64:i = 0i64;
+
+    // Skip leading whitespace
+    while (1 == 1) {
+        if (i >= len) { pass(0i64); }
+        int64:c = aria_libc_mem_string_byte_at(s, i);
+        int64:sp = raw(libc_is_space(c));
+        if (sp == 0i64) { break; }
+        i = i + 1i64;
+    }
+
+    // Check for sign
+    int64:sign = 1i64;
+    int64:sc = aria_libc_mem_string_byte_at(s, i);
+    if (sc == 45i64) {      // '-'
+        sign = -1i64;
+        i = i + 1i64;
+    }
+    if (sc == 43i64) {      // '+'
+        i = i + 1i64;
+    }
+
+    // Parse digits
+    int64:result = 0i64;
+    int64:found_digit = 0i64;
+    while (1 == 1) {
+        if (i >= len) { break; }
+        int64:c = aria_libc_mem_string_byte_at(s, i);
+        int64:d = raw(libc_is_digit(c));
+        if (d == 0i64) { break; }
+        found_digit = 1i64;
+        result = result * 10i64 + (c - 48i64);
+        i = i + 1i64;
+    }
+
+    if (found_digit == 0i64) { pass(0i64); }
+    pass(result * sign);
+};

@@ -1,0 +1,266 @@
+// test_str_pure.aria — Tests for v0.2.8 pure Aria string operations
+//
+// Tests: _str_char.aria, _str_parse.aria, _str_search.aria, _str_buf.aria
+//
+// Compile:
+//   ./scripts/build_static.sh tests/test_str_pure.aria -o build/static-tests/str_pure -laria_libc_mem
+
+use "../src/_str_char.aria".*;
+use "../src/_str_parse.aria".*;
+use "../src/_str_search.aria".*;
+use "../src/_str_buf.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq_int = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_gt_int = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual > threshold) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected > " + string_from_int(threshold)));
+        drop(print("    actual:    " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_lt_int = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual < threshold) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected < " + string_from_int(threshold)));
+        drop(print("    actual:    " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: character classification and case conversion
+// ══════════════════════════════════════════════════════════════════════
+pub func:test_char = NIL() {
+    drop(print("-- char classification --"));
+
+    // toupper
+    drop(assert_eq_int(raw(libc_toupper(97i64)),  65i64,  "toupper('a') = 'A'"));
+    drop(assert_eq_int(raw(libc_toupper(122i64)), 90i64,  "toupper('z') = 'Z'"));
+    drop(assert_eq_int(raw(libc_toupper(65i64)),  65i64,  "toupper('A') = 'A' (unchanged)"));
+    drop(assert_eq_int(raw(libc_toupper(48i64)),  48i64,  "toupper('0') = '0' (unchanged)"));
+
+    // tolower
+    drop(assert_eq_int(raw(libc_tolower(65i64)),  97i64,  "tolower('A') = 'a'"));
+    drop(assert_eq_int(raw(libc_tolower(90i64)),  122i64, "tolower('Z') = 'z'"));
+    drop(assert_eq_int(raw(libc_tolower(97i64)),  97i64,  "tolower('a') = 'a' (unchanged)"));
+    drop(assert_eq_int(raw(libc_tolower(50i64)),  50i64,  "tolower('2') = '2' (unchanged)"));
+
+    // is_alpha
+    drop(assert_eq_int(raw(libc_is_alpha(65i64)),  1i64, "is_alpha('A')"));
+    drop(assert_eq_int(raw(libc_is_alpha(122i64)), 1i64, "is_alpha('z')"));
+    drop(assert_eq_int(raw(libc_is_alpha(48i64)),  0i64, "!is_alpha('0')"));
+    drop(assert_eq_int(raw(libc_is_alpha(32i64)),  0i64, "!is_alpha(' ')"));
+
+    // is_digit
+    drop(assert_eq_int(raw(libc_is_digit(48i64)),  1i64, "is_digit('0')"));
+    drop(assert_eq_int(raw(libc_is_digit(57i64)),  1i64, "is_digit('9')"));
+    drop(assert_eq_int(raw(libc_is_digit(65i64)),  0i64, "!is_digit('A')"));
+
+    // is_alnum
+    drop(assert_eq_int(raw(libc_is_alnum(65i64)),  1i64, "is_alnum('A')"));
+    drop(assert_eq_int(raw(libc_is_alnum(48i64)),  1i64, "is_alnum('0')"));
+    drop(assert_eq_int(raw(libc_is_alnum(32i64)),  0i64, "!is_alnum(' ')"));
+
+    // is_space
+    drop(assert_eq_int(raw(libc_is_space(32i64)),  1i64, "is_space(' ')"));
+    drop(assert_eq_int(raw(libc_is_space(9i64)),   1i64, "is_space(tab)"));
+    drop(assert_eq_int(raw(libc_is_space(10i64)),  1i64, "is_space(newline)"));
+    drop(assert_eq_int(raw(libc_is_space(65i64)),  0i64, "!is_space('A')"));
+
+    // is_upper / is_lower
+    drop(assert_eq_int(raw(libc_is_upper(65i64)),  1i64, "is_upper('A')"));
+    drop(assert_eq_int(raw(libc_is_upper(97i64)),  0i64, "!is_upper('a')"));
+    drop(assert_eq_int(raw(libc_is_lower(97i64)),  1i64, "is_lower('a')"));
+    drop(assert_eq_int(raw(libc_is_lower(65i64)),  0i64, "!is_lower('A')"));
+
+    // is_print / is_ascii
+    drop(assert_eq_int(raw(libc_is_print(32i64)),  1i64, "is_print(' ')"));
+    drop(assert_eq_int(raw(libc_is_print(126i64)), 1i64, "is_print('~')"));
+    drop(assert_eq_int(raw(libc_is_print(0i64)),   0i64, "!is_print(NUL)"));
+    drop(assert_eq_int(raw(libc_is_ascii(65i64)),  1i64, "is_ascii('A')"));
+    drop(assert_eq_int(raw(libc_is_ascii(200i64)), 0i64, "!is_ascii(200)"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: string length and parsing
+// ══════════════════════════════════════════════════════════════════════
+pub func:test_parse = NIL() {
+    drop(print("-- string parse --"));
+
+    // strlen
+    drop(assert_eq_int(raw(libc_strlen_pure("hello")),      5i64,  "strlen('hello') = 5"));
+    drop(assert_eq_int(raw(libc_strlen_pure("")),           0i64,  "strlen('') = 0"));
+    drop(assert_eq_int(raw(libc_strlen_pure("a")),          1i64,  "strlen('a') = 1"));
+    drop(assert_eq_int(raw(libc_strlen_pure("hello world")), 11i64, "strlen('hello world') = 11"));
+
+    // strtol
+    drop(assert_eq_int(raw(libc_strtol_pure("42")),      42i64,   "strtol('42') = 42"));
+    drop(assert_eq_int(raw(libc_strtol_pure("-7")),      -7i64,   "strtol('-7') = -7"));
+    drop(assert_eq_int(raw(libc_strtol_pure("+100")),    100i64,  "strtol('+100') = 100"));
+    drop(assert_eq_int(raw(libc_strtol_pure("  123")),   123i64,  "strtol('  123') = 123 (leading spaces)"));
+    drop(assert_eq_int(raw(libc_strtol_pure("0")),       0i64,    "strtol('0') = 0"));
+    drop(assert_eq_int(raw(libc_strtol_pure("")),        0i64,    "strtol('') = 0"));
+    drop(assert_eq_int(raw(libc_strtol_pure("abc")),     0i64,    "strtol('abc') = 0 (non-numeric)"));
+    drop(assert_eq_int(raw(libc_strtol_pure("123abc")),  123i64,  "strtol('123abc') = 123 (stops at non-digit)"));
+    drop(assert_eq_int(raw(libc_strtol_pure("-999")),    -999i64, "strtol('-999') = -999"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: string search and comparison
+// ══════════════════════════════════════════════════════════════════════
+pub func:test_search = NIL() {
+    drop(print("-- string search --"));
+
+    // strcmp
+    drop(assert_eq_int(raw(libc_strcmp_pure("abc", "abc")),  0i64,  "strcmp('abc','abc') = 0"));
+    drop(assert_lt_int(raw(libc_strcmp_pure("abc", "abd")),  0i64,  "strcmp('abc','abd') < 0"));
+    drop(assert_gt_int(raw(libc_strcmp_pure("abd", "abc")),  0i64,  "strcmp('abd','abc') > 0"));
+    drop(assert_lt_int(raw(libc_strcmp_pure("ab", "abc")),   0i64,  "strcmp('ab','abc') < 0 (shorter)"));
+    drop(assert_gt_int(raw(libc_strcmp_pure("abc", "ab")),   0i64,  "strcmp('abc','ab') > 0 (longer)"));
+    drop(assert_eq_int(raw(libc_strcmp_pure("", "")),        0i64,  "strcmp('','') = 0"));
+
+    // strncmp
+    drop(assert_eq_int(raw(libc_strncmp_pure("abc", "abd", 2i64)), 0i64, "strncmp('abc','abd',2) = 0"));
+    drop(assert_lt_int(raw(libc_strncmp_pure("abc", "abd", 3i64)), 0i64, "strncmp('abc','abd',3) < 0"));
+    drop(assert_eq_int(raw(libc_strncmp_pure("abc", "abd", 0i64)), 0i64, "strncmp n=0 always 0"));
+
+    // strchr
+    drop(assert_eq_int(raw(libc_strchr_pure("hello", 104i64)),  0i64,  "strchr('hello','h') = 0"));
+    drop(assert_eq_int(raw(libc_strchr_pure("hello", 108i64)),  2i64,  "strchr('hello','l') = 2"));
+    drop(assert_eq_int(raw(libc_strchr_pure("hello", 111i64)),  4i64,  "strchr('hello','o') = 4"));
+    drop(assert_eq_int(raw(libc_strchr_pure("hello", 120i64)),  -1i64, "strchr('hello','x') = -1"));
+
+    // strrchr
+    drop(assert_eq_int(raw(libc_strrchr_pure("hello", 108i64)), 3i64,  "strrchr('hello','l') = 3 (last)"));
+    drop(assert_eq_int(raw(libc_strrchr_pure("hello", 104i64)), 0i64,  "strrchr('hello','h') = 0"));
+    drop(assert_eq_int(raw(libc_strrchr_pure("hello", 120i64)), -1i64, "strrchr('hello','x') = -1"));
+
+    // strstr
+    drop(assert_eq_int(raw(libc_strstr_pure("hello world", "world")), 6i64,  "strstr finds 'world' at 6"));
+    drop(assert_eq_int(raw(libc_strstr_pure("hello world", "hello")), 0i64,  "strstr finds 'hello' at 0"));
+    drop(assert_eq_int(raw(libc_strstr_pure("hello world", "xyz")),   -1i64, "strstr 'xyz' not found"));
+    drop(assert_eq_int(raw(libc_strstr_pure("hello world", "")),      0i64,  "strstr empty needle = 0"));
+    drop(assert_eq_int(raw(libc_strstr_pure("aababc", "abc")),        3i64,  "strstr overlap 'abc' at 3"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: string buffer operations
+// ══════════════════════════════════════════════════════════════════════
+pub func:test_buf = NIL() {
+    drop(print("-- string buffer --"));
+
+    // substring
+    drop(assert_str_eq(raw(libc_substring_pure("hello world", 0i64, 5i64)),  "hello", "substr(0,5) = 'hello'"));
+    drop(assert_str_eq(raw(libc_substring_pure("hello world", 6i64, 5i64)),  "world", "substr(6,5) = 'world'"));
+    drop(assert_str_eq(raw(libc_substring_pure("hello world", 6i64, 100i64)), "world", "substr(6,100) clamps to 'world'"));
+    drop(assert_str_eq(raw(libc_substring_pure("hello", 0i64, 0i64)),        "",      "substr(0,0) = ''"));
+    drop(assert_str_eq(raw(libc_substring_pure("hello", 10i64, 5i64)),       "",      "substr(10,5) = '' (out of range)"));
+
+    // strdup + string_from_ptr
+    int64:dup_ptr = raw(libc_strdup_pure("test string"));
+    drop(assert_gt_int(dup_ptr, 0i64, "strdup returns non-zero pointer"));
+    string:dup_str = raw(libc_string_from_ptr_pure(dup_ptr, 100i64));
+    drop(assert_str_eq(dup_str, "test string", "strdup content matches"));
+    drop(libc_release(dup_ptr));
+
+    // strcpy_to
+    int64:buf1 = libc_malloc(64i64) ?! 0i64;
+    drop(assert_gt_int(buf1, 0i64, "alloc buf for strcpy_to"));
+    int64:copied = raw(libc_strcpy_to_pure(buf1, "hello"));
+    drop(assert_eq_int(copied, 5i64, "strcpy_to returns 5"));
+    string:buf1_str = raw(libc_string_from_ptr_pure(buf1, 64i64));
+    drop(assert_str_eq(buf1_str, "hello", "strcpy_to content = 'hello'"));
+    drop(libc_release(buf1));
+
+    // strncpy_to
+    int64:buf2 = libc_malloc(64i64) ?! 0i64;
+    int64:ncopied = raw(libc_strncpy_to_pure(buf2, "hello world", 5i64));
+    drop(assert_eq_int(ncopied, 5i64, "strncpy_to returns 5"));
+    string:buf2_str = raw(libc_string_from_ptr_pure(buf2, 5i64));
+    drop(assert_str_eq(buf2_str, "hello", "strncpy_to content = 'hello'"));
+    drop(libc_release(buf2));
+
+    // strcat_to
+    int64:buf3 = libc_malloc(64i64) ?! 0i64;
+    drop(raw(libc_strcpy_to_pure(buf3, "hello")));
+    int64:cat_len = raw(libc_strcat_to_pure(buf3, 64i64, " world"));
+    drop(assert_eq_int(cat_len, 11i64, "strcat_to returns 11"));
+    string:buf3_str = raw(libc_string_from_ptr_pure(buf3, 64i64));
+    drop(assert_str_eq(buf3_str, "hello world", "strcat_to content = 'hello world'"));
+    drop(libc_release(buf3));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Main
+// ══════════════════════════════════════════════════════════════════════
+func:main = int32() {
+    drop(print("=== aria-libc v0.2.8 tests (pure Aria string ops) ==="));
+    drop(print(""));
+
+    drop(raw(test_char()));
+    drop(raw(test_parse()));
+    drop(raw(test_search()));
+    drop(raw(test_buf()));
+
+    drop(print(""));
+    drop(print("PASS: " + string_from_int(pass_count)));
+    drop(print("FAIL: " + string_from_int(fail_count)));
+
+    if (fail_count == 0i64) {
+        drop(print("ALL PASSED"));
+    } else {
+        drop(print("SOME FAILED"));
+    }
+
+    exit(0);
+};

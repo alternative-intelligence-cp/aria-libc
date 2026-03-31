@@ -61,6 +61,8 @@ declare -a ALL_TESTS=(
     "proc_pure:tests/test_proc_pure.aria:-laria_libc_mem"
     # v0.2.7: POSIX extras + errno table
     "posix_extra:tests/test_posix_extra.aria:-laria_libc_mem"
+    # v0.2.8: Pure Aria string operations
+    "str_pure:tests/test_str_pure.aria:-laria_libc_mem"
 )
 
 # ── Filter tests if args provided ───────────────────────────────────

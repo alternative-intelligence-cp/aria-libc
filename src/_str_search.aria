@@ -1,0 +1,161 @@
+// _str_search.aria — Pure Aria string search and comparison
+// Uses aria_libc_mem_string_byte_at from C mem shim for byte-level access.
+//
+// Port status (replaces C string shim equivalents):
+//   libc_strcmp_pure    — PURE Aria (lexicographic compare)
+//   libc_strncmp_pure  — PURE Aria (bounded compare)
+//   libc_strchr_pure   — PURE Aria (find first char)
+//   libc_strrchr_pure  — PURE Aria (find last char)
+//   libc_strstr_pure   — PURE Aria (find substring)
+//
+// Dependencies:
+//   aria_libc_mem (C shim) — string_byte_at
+//   _str_parse.aria — libc_strlen_pure
+//
+// Usage:
+//   use "../src/_str_search.aria".*;
+//   int64:cmp = raw(libc_strcmp_pure("abc", "abd"));  // negative
+//   int64:idx = raw(libc_strchr_pure("hello", 108i64));  // 2 (first 'l')
+
+use "_str_parse.aria".*;
+
+// ── Extern: byte-level string access from mem shim ──────────────────
+extern func:aria_libc_mem_string_byte_at = int64(string:s, int64:offset);
+
+// ══════════════════════════════════════════════════════════════════════
+// strcmp — lexicographic string comparison
+// ══════════════════════════════════════════════════════════════════════
+
+// Compare two strings lexicographically.
+// Returns: negative if a < b, 0 if equal, positive if a > b.
+pub func:libc_strcmp_pure = int64(string:a, string:b) {
+    int64:i = 0i64;
+    int64:max_scan = 1048576i64;
+    while (1 == 1) {
+        if (i >= max_scan) { pass(0i64); }
+        int64:ca = aria_libc_mem_string_byte_at(a, i);
+        int64:cb = aria_libc_mem_string_byte_at(b, i);
+
+        // If either hits null terminator
+        if (ca == 0i64) {
+            if (cb == 0i64) { pass(0i64); }  // both ended — equal
+            pass(0i64 - 1i64);                // a shorter than b
+        }
+        if (cb == 0i64) { pass(1i64); }      // b shorter than a
+
+        // Compare bytes
+        if (ca != cb) {
+            pass(ca - cb);
+        }
+        i = i + 1i64;
+    }
+    pass(0i64);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// strncmp — bounded lexicographic comparison
+// ══════════════════════════════════════════════════════════════════════
+
+// Compare at most n bytes of two strings.
+// Returns: negative if a < b, 0 if equal/matching in first n bytes, positive if a > b.
+pub func:libc_strncmp_pure = int64(string:a, string:b, int64:n) {
+    if (n <= 0i64) { pass(0i64); }
+    int64:i = 0i64;
+    while (1 == 1) {
+        if (i >= n) { pass(0i64); }  // matched all n bytes
+        int64:ca = aria_libc_mem_string_byte_at(a, i);
+        int64:cb = aria_libc_mem_string_byte_at(b, i);
+
+        if (ca == 0i64) {
+            if (cb == 0i64) { pass(0i64); }
+            pass(0i64 - 1i64);
+        }
+        if (cb == 0i64) { pass(1i64); }
+
+        if (ca != cb) {
+            pass(ca - cb);
+        }
+        i = i + 1i64;
+    }
+    pass(0i64);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// strchr — find first occurrence of a character
+// ══════════════════════════════════════════════════════════════════════
+
+// Find the first occurrence of byte value c in string s.
+// Returns the index (0-based), or -1 if not found.
+pub func:libc_strchr_pure = int64(string:s, int64:c) {
+    int64:i = 0i64;
+    int64:max_scan = 1048576i64;
+    while (1 == 1) {
+        if (i >= max_scan) { pass(-1i64); }
+        int64:b = aria_libc_mem_string_byte_at(s, i);
+        if (b == c) { pass(i); }
+        if (b == 0i64) { pass(-1i64); }  // hit null terminator
+        if (b < 0i64) { pass(-1i64); }   // error
+        i = i + 1i64;
+    }
+    pass(-1i64);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// strrchr — find last occurrence of a character
+// ══════════════════════════════════════════════════════════════════════
+
+// Find the last occurrence of byte value c in string s.
+// Returns the index (0-based), or -1 if not found.
+pub func:libc_strrchr_pure = int64(string:s, int64:c) {
+    int64:len = raw(libc_strlen_pure(s));
+    int64:last = -1i64;
+    int64:i = 0i64;
+    while (1 == 1) {
+        if (i >= len) { pass(last); }
+        int64:b = aria_libc_mem_string_byte_at(s, i);
+        if (b == c) { last = i; }
+        i = i + 1i64;
+    }
+    pass(last);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// strstr — find substring
+// ══════════════════════════════════════════════════════════════════════
+
+// Find the first occurrence of needle in haystack.
+// Returns the index (0-based) of the start of the match, or -1 if not found.
+pub func:libc_strstr_pure = int64(string:haystack, string:needle) {
+    int64:hlen = raw(libc_strlen_pure(haystack));
+    int64:nlen = raw(libc_strlen_pure(needle));
+
+    // Empty needle always matches at position 0
+    if (nlen == 0i64) { pass(0i64); }
+
+    // Needle longer than haystack — impossible
+    if (nlen > hlen) { pass(-1i64); }
+
+    int64:bound = hlen - nlen;
+    int64:i = 0i64;
+    while (1 == 1) {
+        if (i > bound) { pass(-1i64); }
+
+        // Check if needle matches at position i
+        int64:j = 0i64;
+        int64:matched = 1i64;
+        while (1 == 1) {
+            if (j >= nlen) { break; }
+            int64:hc = aria_libc_mem_string_byte_at(haystack, i + j);
+            int64:nc = aria_libc_mem_string_byte_at(needle, j);
+            if (hc != nc) {
+                matched = 0i64;
+                break;
+            }
+            j = j + 1i64;
+        }
+
+        if (matched == 1i64) { pass(i); }
+        i = i + 1i64;
+    }
+    pass(-1i64);
+};

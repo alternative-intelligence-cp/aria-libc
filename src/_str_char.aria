@@ -1,0 +1,136 @@
+// _str_char.aria — Pure Aria character classification and case conversion
+// No C shim required. All operations are simple integer arithmetic on ASCII values.
+//
+// Port status (replaces C shim equivalents):
+//   libc_toupper     — PURE Aria
+//   libc_tolower     — PURE Aria
+//   libc_is_alpha    — PURE Aria
+//   libc_is_digit    — PURE Aria
+//   libc_is_alnum    — PURE Aria
+//   libc_is_space    — PURE Aria
+//   libc_is_upper    — PURE Aria (new)
+//   libc_is_lower    — PURE Aria (new)
+//   libc_is_print    — PURE Aria (new)
+//   libc_is_ascii    — PURE Aria (new)
+//
+// Usage:
+//   use "../src/_str_char.aria".*;
+//   int64:upper = raw(libc_toupper(97i64));  // 65 ('A')
+
+// ── ASCII code points for reference ─────────────────────────────────
+// '0'=48  '9'=57   'A'=65  'Z'=90   'a'=97  'z'=122
+// space=32  tab=9  newline=10  cr=13  ff=12  vt=11
+
+// ══════════════════════════════════════════════════════════════════════
+// Case conversion
+// ══════════════════════════════════════════════════════════════════════
+
+// Convert lowercase ASCII letter to uppercase. Non-letters pass through.
+pub func:libc_toupper = int64(int64:c) {
+    if (c >= 97i64) {
+        if (c <= 122i64) {
+            pass(c - 32i64);
+        }
+    }
+    pass(c);
+};
+
+// Convert uppercase ASCII letter to lowercase. Non-letters pass through.
+pub func:libc_tolower = int64(int64:c) {
+    if (c >= 65i64) {
+        if (c <= 90i64) {
+            pass(c + 32i64);
+        }
+    }
+    pass(c);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Character classification
+// ══════════════════════════════════════════════════════════════════════
+
+// Returns 1 if c is an uppercase ASCII letter (A-Z), 0 otherwise.
+pub func:libc_is_upper = int64(int64:c) {
+    if (c >= 65i64) {
+        if (c <= 90i64) {
+            pass(1i64);
+        }
+    }
+    pass(0i64);
+};
+
+// Returns 1 if c is a lowercase ASCII letter (a-z), 0 otherwise.
+pub func:libc_is_lower = int64(int64:c) {
+    if (c >= 97i64) {
+        if (c <= 122i64) {
+            pass(1i64);
+        }
+    }
+    pass(0i64);
+};
+
+// Returns 1 if c is an ASCII letter (A-Z or a-z), 0 otherwise.
+pub func:libc_is_alpha = int64(int64:c) {
+    if (c >= 65i64) {
+        if (c <= 90i64) { pass(1i64); }
+    }
+    if (c >= 97i64) {
+        if (c <= 122i64) { pass(1i64); }
+    }
+    pass(0i64);
+};
+
+// Returns 1 if c is an ASCII digit (0-9), 0 otherwise.
+pub func:libc_is_digit = int64(int64:c) {
+    if (c >= 48i64) {
+        if (c <= 57i64) {
+            pass(1i64);
+        }
+    }
+    pass(0i64);
+};
+
+// Returns 1 if c is alphanumeric (letter or digit), 0 otherwise.
+pub func:libc_is_alnum = int64(int64:c) {
+    if (c >= 48i64) {
+        if (c <= 57i64) { pass(1i64); }
+    }
+    if (c >= 65i64) {
+        if (c <= 90i64) { pass(1i64); }
+    }
+    if (c >= 97i64) {
+        if (c <= 122i64) { pass(1i64); }
+    }
+    pass(0i64);
+};
+
+// Returns 1 if c is whitespace (space, tab, newline, CR, FF, VT), 0 otherwise.
+pub func:libc_is_space = int64(int64:c) {
+    if (c == 32i64)  { pass(1i64); }   // space
+    if (c == 9i64)   { pass(1i64); }   // tab
+    if (c == 10i64)  { pass(1i64); }   // newline
+    if (c == 13i64)  { pass(1i64); }   // carriage return
+    if (c == 12i64)  { pass(1i64); }   // form feed
+    if (c == 11i64)  { pass(1i64); }   // vertical tab
+    pass(0i64);
+};
+
+// Returns 1 if c is a printable ASCII character (32-126), 0 otherwise.
+pub func:libc_is_print = int64(int64:c) {
+    if (c >= 32i64) {
+        if (c <= 126i64) {
+            pass(1i64);
+        }
+    }
+    pass(0i64);
+};
+
+// Returns 1 if c is in the ASCII range (0-127), 0 otherwise.
+pub func:libc_is_ascii = int64(int64:c) {
+    if (c >= 0i64) {
+        if (c <= 127i64) {
+            pass(1i64);
+        }
+    }
+    pass(0i64);
+};
