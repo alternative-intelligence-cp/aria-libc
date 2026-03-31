@@ -34,10 +34,10 @@
 use "_constants.aria".*;
 
 // ── Struct field read helpers (temporary C shim dependency) ──────────
-extern func:aria_libc_mem_read_byte = int64(int64:ptr, int64:offset);
-extern func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
-extern func:aria_libc_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
-extern func:aria_libc_mem_read_string = string(int64:ptr, int64:max_len);
+extern func:aria_mem_read_byte = int64(int64:ptr, int64:offset);
+extern func:aria_mem_read_int64 = int64(int64:ptr, int64:offset);
+extern func:aria_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_mem_read_string = string(int64:ptr, int64:max_len);
 
 // ── Constants ───────────────────────────────────────────────────────
 int64:_DIR_BUF_SIZE  = 262144i64;  // 256 KB buffer for dirent data
@@ -46,8 +46,8 @@ int64:_DIR_DATA_CAP  = 262128i64;  // 262144 - 16 = data capacity
 
 // ── Internal: read uint16 (little-endian) from buffer ───────────────
 func:_read_uint16 = int64(int64:ptr, int64:offset) {
-    int64:lo = aria_libc_mem_read_byte(ptr, offset);
-    int64:hi = aria_libc_mem_read_byte(ptr, offset + 1i64);
+    int64:lo = aria_mem_read_byte(ptr, offset);
+    int64:hi = aria_mem_read_byte(ptr, offset + 1i64);
     int64:val = lo + (hi * 256i64);
     pass(val);
 };
@@ -55,7 +55,7 @@ func:_read_uint16 = int64(int64:ptr, int64:offset) {
 // ── Internal: walk to entry at index, return offset from data start ─
 // Returns -1 if index is out of bounds.
 func:_dir_walk_to = int64(int64:handle, int64:index) {
-    int64:total = aria_libc_mem_read_int64(handle, 0i64);
+    int64:total = aria_mem_read_int64(handle, 0i64);
     int64:data = handle + _DIR_HDR_SIZE;
     int64:pos = 0i64;
     int64:i = 0i64;
@@ -142,8 +142,8 @@ pub func:libc_opendir = int64(string:path) {
     }
 
     // Write header
-    drop(aria_libc_mem_write_int64(buf, 0i64, total));
-    drop(aria_libc_mem_write_int64(buf, 8i64, count));
+    drop(aria_mem_write_int64(buf, 0i64, total));
+    drop(aria_mem_write_int64(buf, 8i64, count));
 
     pass(buf);
 };
@@ -153,7 +153,7 @@ pub func:libc_readdir_count = int64(int64:handle) {
     if (handle < 1i64) {
         pass(0i64);
     }
-    int64:count = aria_libc_mem_read_int64(handle, 8i64);
+    int64:count = aria_mem_read_int64(handle, 8i64);
     pass(count);
 };
 
@@ -170,7 +170,7 @@ pub func:libc_readdir_name = string(int64:handle, int64:index) {
     int64:data = handle + _DIR_HDR_SIZE;
     // d_name starts at offset 19 within the entry
     int64:name_ptr = data + pos + 19i64;
-    string:name = aria_libc_mem_read_string(name_ptr, 256i64);
+    string:name = aria_mem_read_string(name_ptr, 256i64);
     pass(name);
 };
 
@@ -187,7 +187,7 @@ pub func:libc_readdir_type = int64(int64:handle, int64:index) {
     }
     int64:data = handle + _DIR_HDR_SIZE;
     // d_type is at offset 18 within the entry (1 byte)
-    int64:dtype = aria_libc_mem_read_byte(data, pos + 18i64);
+    int64:dtype = aria_mem_read_byte(data, pos + 18i64);
     pass(dtype);
 };
 
@@ -203,7 +203,7 @@ pub func:libc_readdir_ino = int64(int64:handle, int64:index) {
     }
     int64:data = handle + _DIR_HDR_SIZE;
     // d_ino is at offset 0 within the entry (8 bytes)
-    int64:ino = aria_libc_mem_read_int64(data, pos);
+    int64:ino = aria_mem_read_int64(data, pos);
     pass(ino);
 };
 

@@ -1,0 +1,225 @@
+// test_math_pure.aria — Test pure Aria math module (v0.3.0)
+//
+// Tests math functions from compiler runtime — NO C shim link flags.
+//
+// Build & run:
+//   cd tests && ariac test_math_pure.aria -o test_math_pure && ./test_math_pure
+//   ./scripts/run_tests_static.sh math_pure
+
+use "../src/_math.aria".*;
+
+extern func:aria_conv_from_int = string(int64:val);
+
+func:failsafe = int32(tbb32:err) {
+    exit(1);
+};
+
+func:main = int32() {
+    int64:passed = 0i64;
+    int64:failed = 0i64;
+
+    // ── Constants ────────────────────────────────────────────────────
+    flt64:pi_val = raw(math_pi());
+    if (raw(math_approx_eq(pi_val, 3.14159265358979, 0.00001)) == 1i64) {
+        print("PASS: math_pi");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_pi");
+        failed = failed + 1i64;
+    }
+
+    flt64:e_val = raw(math_e());
+    if (raw(math_approx_eq(e_val, 2.71828182845904, 0.00001)) == 1i64) {
+        print("PASS: math_e");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_e");
+        failed = failed + 1i64;
+    }
+
+    // ── Trigonometric ────────────────────────────────────────────────
+    flt64:sin_val = raw(math_sin(pi_val / 2.0));
+    if (raw(math_approx_eq(sin_val, 1.0, 0.0001)) == 1i64) {
+        print("PASS: math_sin(pi/2) = 1");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_sin");
+        failed = failed + 1i64;
+    }
+
+    flt64:cos_val = raw(math_cos(0.0));
+    if (raw(math_approx_eq(cos_val, 1.0, 0.0001)) == 1i64) {
+        print("PASS: math_cos(0) = 1");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_cos");
+        failed = failed + 1i64;
+    }
+
+    flt64:tan_val = raw(math_tan(pi_val / 4.0));
+    if (raw(math_approx_eq(tan_val, 1.0, 0.0001)) == 1i64) {
+        print("PASS: math_tan(pi/4) = 1");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_tan");
+        failed = failed + 1i64;
+    }
+
+    flt64:asin_val = raw(math_asin(1.0));
+    if (raw(math_approx_eq(asin_val, pi_val / 2.0, 0.0001)) == 1i64) {
+        print("PASS: math_asin(1) = pi/2");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_asin");
+        failed = failed + 1i64;
+    }
+
+    flt64:acos_val = raw(math_acos(1.0));
+    if (raw(math_approx_eq(acos_val, 0.0, 0.0001)) == 1i64) {
+        print("PASS: math_acos(1) = 0");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_acos");
+        failed = failed + 1i64;
+    }
+
+    flt64:atan_val = raw(math_atan(1.0));
+    if (raw(math_approx_eq(atan_val, pi_val / 4.0, 0.0001)) == 1i64) {
+        print("PASS: math_atan(1) = pi/4");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_atan");
+        failed = failed + 1i64;
+    }
+
+    flt64:atan2_val = raw(math_atan2(1.0, 1.0));
+    if (raw(math_approx_eq(atan2_val, pi_val / 4.0, 0.0001)) == 1i64) {
+        print("PASS: math_atan2(1,1) = pi/4");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_atan2");
+        failed = failed + 1i64;
+    }
+
+    // ── Power / Exponential ──────────────────────────────────────────
+    flt64:sqrt_val = raw(math_sqrt(144.0));
+    if (raw(math_approx_eq(sqrt_val, 12.0, 0.0001)) == 1i64) {
+        print("PASS: math_sqrt(144) = 12");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_sqrt");
+        failed = failed + 1i64;
+    }
+
+    flt64:pow_val = raw(math_pow(2.0, 10.0));
+    if (raw(math_approx_eq(pow_val, 1024.0, 0.0001)) == 1i64) {
+        print("PASS: math_pow(2,10) = 1024");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_pow");
+        failed = failed + 1i64;
+    }
+
+    flt64:exp_val = raw(math_exp(1.0));
+    if (raw(math_approx_eq(exp_val, e_val, 0.0001)) == 1i64) {
+        print("PASS: math_exp(1) = e");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_exp");
+        failed = failed + 1i64;
+    }
+
+    flt64:log_val = raw(math_log(e_val));
+    if (raw(math_approx_eq(log_val, 1.0, 0.0001)) == 1i64) {
+        print("PASS: math_log(e) = 1");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_log");
+        failed = failed + 1i64;
+    }
+
+    flt64:log10_val = raw(math_log10(100.0));
+    if (raw(math_approx_eq(log10_val, 2.0, 0.0001)) == 1i64) {
+        print("PASS: math_log10(100) = 2");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_log10");
+        failed = failed + 1i64;
+    }
+
+    // ── Rounding ─────────────────────────────────────────────────────
+    flt64:floor_val = raw(math_floor(3.7));
+    if (raw(math_approx_eq(floor_val, 3.0, 0.0001)) == 1i64) {
+        print("PASS: math_floor(3.7) = 3");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_floor");
+        failed = failed + 1i64;
+    }
+
+    flt64:ceil_val = raw(math_ceil(3.2));
+    if (raw(math_approx_eq(ceil_val, 4.0, 0.0001)) == 1i64) {
+        print("PASS: math_ceil(3.2) = 4");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_ceil");
+        failed = failed + 1i64;
+    }
+
+    flt64:round_val = raw(math_round(3.5));
+    if (raw(math_approx_eq(round_val, 4.0, 0.0001)) == 1i64) {
+        print("PASS: math_round(3.5) = 4");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_round");
+        failed = failed + 1i64;
+    }
+
+    flt64:abs_val = raw(math_abs(0.0 - 42.5));
+    if (raw(math_approx_eq(abs_val, 42.5, 0.0001)) == 1i64) {
+        print("PASS: math_abs(-42.5) = 42.5");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_abs");
+        failed = failed + 1i64;
+    }
+
+    flt64:fmod_val = raw(math_fmod(10.0, 3.0));
+    if (raw(math_approx_eq(fmod_val, 1.0, 0.0001)) == 1i64) {
+        print("PASS: math_fmod(10,3) = 1");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_fmod");
+        failed = failed + 1i64;
+    }
+
+    // ── Utility ──────────────────────────────────────────────────────
+    int64:int_val = raw(math_to_int(42.9));
+    if (int_val == 42i64) {
+        print("PASS: math_to_int(42.9) = 42");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_to_int");
+        failed = failed + 1i64;
+    }
+
+    int64:eq_val = raw(math_approx_eq(1.0, 1.0000001, 0.001));
+    if (eq_val == 1i64) {
+        print("PASS: math_approx_eq(1.0, 1.0000001)");
+        passed = passed + 1i64;
+    } else {
+        print("FAIL: math_approx_eq");
+        failed = failed + 1i64;
+    }
+
+    // ── Summary ──────────────────────────────────────────────────────
+    print("---");
+    print("Math pure test results:");
+    print(aria_conv_from_int(passed));
+    print(aria_conv_from_int(failed));
+
+    if (failed > 0i64) {
+        exit(1);
+    }
+    exit(0);
+};

@@ -17,9 +17,9 @@
 use "_constants.aria".*;
 
 // ── Extern helpers for byte-level struct access ─────────────────────
-extern func:aria_libc_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
-extern func:aria_libc_mem_read_byte = int64(int64:ptr, int64:offset);
-extern func:aria_libc_mem_string_byte_at = int64(string:s, int64:offset);
+extern func:aria_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_mem_read_byte = int64(int64:ptr, int64:offset);
+extern func:aria_string_byte_at = int64(string:s, int64:offset);
 
 // ══════════════════════════════════════════════════════════════════════
 // Byte-order conversion (x86_64 is little-endian, network is big-endian)
@@ -76,7 +76,7 @@ pub func:libc_inet_aton = int64(string:addr) {
     int64:result = 0i64;
 
     loop(0, len, 1) {
-        int64:byte = aria_libc_mem_string_byte_at(addr, $);
+        int64:byte = aria_string_byte_at(addr, $);
         if (byte == 46i64) {
             result = result * 256i64 + octet;
             octet = 0i64;
@@ -129,14 +129,14 @@ pub func:_sockaddr_in_build = int64(int64:ip_addr, int64:port) {
     if (buf < 1i64) { pass(0i64); }
 
     // sin_family = AF_INET (2) as uint16 little-endian
-    drop(aria_libc_mem_write_byte(buf, 0i64, AF_INET));
-    drop(aria_libc_mem_write_byte(buf, 1i64, 0i64));
+    drop(aria_mem_write_byte(buf, 0i64, AF_INET));
+    drop(aria_mem_write_byte(buf, 1i64, 0i64));
 
     // sin_port as uint16 in network byte order (big-endian)
     int64:port_hi = port / 256i64;
     int64:port_lo = port - port_hi * 256i64;
-    drop(aria_libc_mem_write_byte(buf, 2i64, port_hi));
-    drop(aria_libc_mem_write_byte(buf, 3i64, port_lo));
+    drop(aria_mem_write_byte(buf, 2i64, port_hi));
+    drop(aria_mem_write_byte(buf, 3i64, port_lo));
 
     // sin_addr: write 4 bytes in network byte order
     int64:a0 = ip_addr / 16777216i64;
@@ -145,10 +145,10 @@ pub func:_sockaddr_in_build = int64(int64:ip_addr, int64:port) {
     int64:r1 = r0 - a1 * 65536i64;
     int64:a2 = r1 / 256i64;
     int64:a3 = r1 - a2 * 256i64;
-    drop(aria_libc_mem_write_byte(buf, 4i64, a0));
-    drop(aria_libc_mem_write_byte(buf, 5i64, a1));
-    drop(aria_libc_mem_write_byte(buf, 6i64, a2));
-    drop(aria_libc_mem_write_byte(buf, 7i64, a3));
+    drop(aria_mem_write_byte(buf, 4i64, a0));
+    drop(aria_mem_write_byte(buf, 5i64, a1));
+    drop(aria_mem_write_byte(buf, 6i64, a2));
+    drop(aria_mem_write_byte(buf, 7i64, a3));
 
     // sin_zero[8] — already zeroed by mmap
 

@@ -101,8 +101,8 @@ off_t ftello64(FILE *stream) {
     return ftello(stream);
 }
 
-int fstat64(int fd, struct stat *buf) {
-    return fstat(fd, buf);
+int fstat64(int fd, struct stat64 *buf) {
+    return fstat(fd, (struct stat *)buf);
 }
 
 off_t lseek64(int fd, off_t offset, int whence) {

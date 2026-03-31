@@ -22,10 +22,10 @@ use "_alloc.aria".*;
 use "_str_parse.aria".*;
 
 // ── Externs from mem shim ───────────────────────────────────────────
-extern func:aria_libc_mem_string_byte_at = int64(string:s, int64:offset);
-extern func:aria_libc_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
-extern func:aria_libc_mem_read_byte = int64(int64:ptr, int64:offset);
-extern func:aria_libc_mem_read_string = string(int64:ptr, int64:max_len);
+extern func:aria_string_byte_at = int64(string:s, int64:offset);
+extern func:aria_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_mem_read_byte = int64(int64:ptr, int64:offset);
+extern func:aria_mem_read_string = string(int64:ptr, int64:max_len);
 
 // ══════════════════════════════════════════════════════════════════════
 // substring — extract a substring as a new Aria string
@@ -53,15 +53,15 @@ pub func:libc_substring_pure = string(string:s, int64:start, int64:len) {
     int64:i = 0i64;
     while (1 == 1) {
         if (i >= actual) { break; }
-        int64:b = aria_libc_mem_string_byte_at(s, start + i);
-        drop(aria_libc_mem_write_byte(buf, i, b));
+        int64:b = aria_string_byte_at(s, start + i);
+        drop(aria_mem_write_byte(buf, i, b));
         i = i + 1i64;
     }
     // Null-terminate
-    drop(aria_libc_mem_write_byte(buf, actual, 0i64));
+    drop(aria_mem_write_byte(buf, actual, 0i64));
 
     // Convert raw buffer to Aria string
-    string:result = aria_libc_mem_read_string(buf, actual);
+    string:result = aria_mem_read_string(buf, actual);
 
     // Release the temp buffer
     drop(libc_release(buf));
@@ -83,11 +83,11 @@ pub func:libc_strdup_pure = int64(string:s) {
     int64:i = 0i64;
     while (1 == 1) {
         if (i >= len) { break; }
-        int64:b = aria_libc_mem_string_byte_at(s, i);
-        drop(aria_libc_mem_write_byte(buf, i, b));
+        int64:b = aria_string_byte_at(s, i);
+        drop(aria_mem_write_byte(buf, i, b));
         i = i + 1i64;
     }
-    drop(aria_libc_mem_write_byte(buf, len, 0i64));
+    drop(aria_mem_write_byte(buf, len, 0i64));
     pass(buf);
 };
 
@@ -102,11 +102,11 @@ pub func:libc_strcpy_to_pure = int64(int64:dst, string:src) {
     int64:i = 0i64;
     while (1 == 1) {
         if (i >= len) { break; }
-        int64:b = aria_libc_mem_string_byte_at(src, i);
-        drop(aria_libc_mem_write_byte(dst, i, b));
+        int64:b = aria_string_byte_at(src, i);
+        drop(aria_mem_write_byte(dst, i, b));
         i = i + 1i64;
     }
-    drop(aria_libc_mem_write_byte(dst, len, 0i64));
+    drop(aria_mem_write_byte(dst, len, 0i64));
     pass(len);
 };
 
@@ -124,10 +124,10 @@ pub func:libc_strncpy_to_pure = int64(int64:dst, string:src, int64:n) {
     while (1 == 1) {
         if (i >= n) { pass(n); }
         if (i < slen) {
-            int64:b = aria_libc_mem_string_byte_at(src, i);
-            drop(aria_libc_mem_write_byte(dst, i, b));
+            int64:b = aria_string_byte_at(src, i);
+            drop(aria_mem_write_byte(dst, i, b));
         } else {
-            drop(aria_libc_mem_write_byte(dst, i, 0i64));
+            drop(aria_mem_write_byte(dst, i, 0i64));
         }
         i = i + 1i64;
     }
@@ -146,7 +146,7 @@ pub func:libc_strcat_to_pure = int64(int64:dst, int64:dst_size, string:src) {
     int64:dst_len = 0i64;
     while (1 == 1) {
         if (dst_len >= dst_size) { pass(-1i64); }
-        int64:b = aria_libc_mem_read_byte(dst, dst_len);
+        int64:b = aria_mem_read_byte(dst, dst_len);
         if (b == 0i64) { break; }
         dst_len = dst_len + 1i64;
     }
@@ -159,11 +159,11 @@ pub func:libc_strcat_to_pure = int64(int64:dst, int64:dst_size, string:src) {
     int64:i = 0i64;
     while (1 == 1) {
         if (i >= src_len) { break; }
-        int64:b = aria_libc_mem_string_byte_at(src, i);
-        drop(aria_libc_mem_write_byte(dst, dst_len + i, b));
+        int64:b = aria_string_byte_at(src, i);
+        drop(aria_mem_write_byte(dst, dst_len + i, b));
         i = i + 1i64;
     }
-    drop(aria_libc_mem_write_byte(dst, total, 0i64));
+    drop(aria_mem_write_byte(dst, total, 0i64));
     pass(total);
 };
 
@@ -174,6 +174,6 @@ pub func:libc_strcat_to_pure = int64(int64:dst, int64:dst_size, string:src) {
 // Read a null-terminated string from raw pointer, up to max_len bytes.
 // Returns an Aria string. Delegates to mem shim's read_string.
 pub func:libc_string_from_ptr_pure = string(int64:ptr, int64:max_len) {
-    string:result = aria_libc_mem_read_string(ptr, max_len);
+    string:result = aria_mem_read_string(ptr, max_len);
     pass(result);
 };

@@ -21,8 +21,8 @@ use "_constants.aria".*;
 use "_net_addr.aria".*;
 
 // ── Extern helpers for sockopt value buffer ─────────────────────────
-extern func:aria_libc_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
-extern func:aria_libc_mem_read_int32 = int64(int64:ptr, int64:offset);
+extern func:aria_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_mem_read_int32 = int64(int64:ptr, int64:offset);
 
 // ── Internal constants ──────────────────────────────────────────────
 int64:_OPTVAL_SIZE = 16i64;  // mmap buffer for setsockopt/getsockopt
@@ -122,7 +122,7 @@ pub func:libc_net_setopt = int64(int64:fd, int64:level, int64:optname, int64:val
     if (buf < 1i64) { pass(-1i64); }
 
     // Write value as int64 — kernel reads first 4 bytes (little-endian correct for int32)
-    drop(aria_libc_mem_write_int64(buf, 0i64, val));
+    drop(aria_mem_write_int64(buf, 0i64, val));
 
     // setsockopt(fd, level, optname, optval, optlen=4)
     Result<int64>:r = sys(SETSOCKOPT, fd, level, optname, buf, 4i64);
@@ -142,7 +142,7 @@ pub func:libc_net_getopt = int64(int64:fd, int64:level, int64:optname) {
 
     // Set optlen = 4 (sizeof(int))
     int64:optlen_ptr = buf + 8i64;
-    drop(aria_libc_mem_write_int64(optlen_ptr, 0i64, 4i64));
+    drop(aria_mem_write_int64(optlen_ptr, 0i64, 4i64));
 
     // getsockopt(fd, level, optname, optval, &optlen)
     Result<int64>:r = sys(GETSOCKOPT, fd, level, optname, buf, optlen_ptr);
@@ -150,7 +150,7 @@ pub func:libc_net_getopt = int64(int64:fd, int64:level, int64:optname) {
 
     int64:val = 0i64 - 1i64;
     if (ret == 0i64) {
-        val = aria_libc_mem_read_int32(buf, 0i64);
+        val = aria_mem_read_int32(buf, 0i64);
     }
 
     drop(sys(MUNMAP, buf, _OPTVAL_SIZE));

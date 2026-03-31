@@ -1,26 +1,24 @@
 # aria-libc
 
-Standard C library wrappers for the [Aria programming language](https://github.com/alternative-intelligence-cp/aria) — libc without the boilerplate.
+Pure Aria standard library for systems programming — libc functionality without any C dependencies.
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 ## What is aria-libc?
 
-aria-libc provides Aria-native wrappers around C standard library (libc) functions, so you don't have to write `extern` blocks by hand for common operations. It also enables fully static builds via [musl libc](https://musl.libc.org/) for maximum portability.
+aria-libc provides Aria-native modules for I/O, memory, strings, math, time, process management, networking, POSIX, and filesystem operations. All modules are written in **100% pure Aria** using `sys()` syscall wrappers and compiler runtime externs — no C shim layer required. It also enables fully static builds via [musl libc](https://musl.libc.org/) for maximum portability.
 
 ## Why?
 
-1. **No more extern boilerplate** — Ready-made wrappers for I/O, memory, strings, math, time, process, networking, POSIX, filesystem, and regex functions
+1. **Zero C dependencies** — Every module is pure Aria code. No C shims, no extern C libraries to build or link
 2. **Static builds** — Use `ariac --static` or the musl pipeline for zero-dependency, fully portable binaries
-3. **One canonical source** — Tested, documented libc wrappers the whole ecosystem can depend on
+3. **One canonical source** — Tested, documented standard library the whole ecosystem can depend on
 
 ## Status
 
-**v0.2.0** — 571 tests passing across 20 test suites (10 modules × 2 link modes).
+**v0.3.0** — Standalone Release. 538 tests passing across 18 test suites, all as fully static musl-linked binaries.
 
-All 10 modules fully implemented:
-- Dynamic linking via glibc (default)
-- **Static linking** via `ariac --static` or musl pipeline — zero runtime dependencies
+**Zero C shim dependencies.** All modules are pure Aria code using `sys()` syscalls and compiler runtime (`libaria_runtime.a`) externs.
 
 ## Architecture
 
@@ -28,61 +26,66 @@ All 10 modules fully implemented:
 aria-libc/
 ├── musl-1.2.6/          # musl source (for static builds)
 ├── build/musl/          # musl install (libc.a, crt*.o, headers)
-├── shim/                # C bridge layer (Aria FFI ↔ libc)
-│   ├── aria_libc_*.c    # Per-module C shims
-│   ├── glibc_compat.c   # Compatibility shim for musl+libstdc++
-│   └── Makefile
-├── src/                 # Aria source (public API wrappers)
-├── tests/               # Test files (direct extern + use-import)
+├── compat/              # glibc→musl compatibility shim (for libstdc++)
+│   └── glibc_compat.c
+├── src/                 # Pure Aria source modules
+│   ├── _*.aria          # Internal implementation modules
+│   └── *.aria           # Public API modules (use-importable)
+├── tests/               # Test files
 ├── scripts/             # Build & test automation
 │   ├── build_static.sh  # Static build pipeline
-│   ├── run_tests_static.sh  # Static test suite runner
-│   └── benchmark.sh     # Static vs dynamic benchmarks
+│   └── run_tests_static.sh  # Static test suite runner
 └── aria-package.toml    # Package config
 ```
 
 ### Modules
 
-| Module | Functions | Tests |
-|--------|-----------|-------|
-| **io** | open, close, read, write, seek, stat, mkdir, rmdir, readdir, rename, unlink, errno, strerror, buffer pool | 34 |
-| **mem** | alloc, calloc, realloc, release, memcpy, memmove, memset, memcmp, byte/int64/string read/write, pointer_offset | 51 |
-| **string** | strlen, strcmp, strstr, strchr, strrchr, strtol, strtod, toupper, tolower, char classification, strdup, substring, from_int/float, concat_to | 52 |
-| **math** | sin, cos, tan, asin, acos, atan, atan2, sqrt, pow, exp, log, log10, floor, ceil, round, fabs, fmod, PI, E, to_int, approx_eq, to_string | 46 |
-| **time** | time_now, clock, sleep, usleep, time_format, time_format_utc, time_diff | 10 |
-| **process** | getenv, setenv, unsetenv, run (system), getpid, getppid, getuid, getgid, getcwd, chdir, errno, strerror | 25 |
-| **net** | socket, close, shutdown, bind, listen, accept, connect, send, recv, sendto, recvfrom, setsockopt, getsockopt, set_nonblocking, poll, resolve (getaddrinfo), gethostname, inet_aton/ntoa, htons/ntohs/htonl/ntohl, tcp_connect, tcp_listen | 80 |
-| **posix** | signal_trap/check/reset/ignore, raise, kill, fork, waitpid, wait_exited/status/signaled/termsig, exec_shell, spawn, spawn_bg, pipe_create/read_fd/write_fd, dup, dup2, fd_write_string/read_string/close, mmap, munmap, mprotect, msync, mmap byte/int64/string R/W | 99 |
-| **fs** | access, chmod, symlink, readlink, hardlink, truncate_file, realpath, mkdtemp, mkstemp, mkstemp_path, fnmatch, glob_open/count/path/close, constants (F_OK/R_OK/W_OK/X_OK, S_IRWXU/IRUSR/IWUSR/IXUSR/IRWXG/IRWXO, FNM_PATHNAME/PERIOD/NOESCAPE) | 73 |
-| **regex** | compile, release, is_match, exec, group_start/end/string, replace_first, replace_all, count_matches, last_error, constants (REG_EXTENDED/ICASE/NEWLINE/NOSUB) | 57 |
+| Module | Description | Tests |
+|--------|-------------|-------|
+| **errno** | POSIX error codes and errno handling | 23 |
+| **identity** | System identity (uid, gid, pid, hostname) | 10 |
+| **io_core** | File I/O via sys() — open, read, write, close, seek | 27 |
+| **stat** | File stat via sys() — size, permissions, timestamps | 29 |
+| **fs_core** | Filesystem ops — mkdir, rmdir, rename, unlink, access | 14 |
+| **fs_link** | Symlinks, hardlinks, readlink, realpath | 15 |
+| **fs_dir** | Directory creation and management | 11 |
+| **fs_readdir** | Directory listing via getdents64 syscall | 22 |
+| **mmap** | Memory mapping via sys() — mmap, munmap, mprotect, msync | 16 |
+| **alloc** | Memory allocation — alloc, calloc, realloc, release, byte/int64/string R/W | 29 |
+| **buf** | Buffer management — ring buffers, byte buffers | 25 |
+| **time** | Time and clock via sys() — time_now, clock, nanosleep, formatting | 54 |
+| **net** | Networking via sys() — socket, bind, listen, accept, connect, send, recv, poll, DNS | 65 |
+| **proc** | Process management via sys() — fork, exec, waitpid, pipes, signals, spawn | 38 |
+| **posix_extra** | POSIX extras — random, advanced signal handling, errno table | 61 |
+| **str** | String operations — search, parse, buffer, formatting | 79 |
+| **math** | Math functions — trig, sqrt, pow, log, floor/ceil/round, fmod, constants | 20 |
 
-### Link Modes
+### Static Binary Size
 
-| Mode | Binary Size | Startup | Dependencies |
-|------|------------|---------|--------------|
-| **Dynamic** (glibc) | ~115 KB | ~8 ms | libc.so.6, libstdc++.so.6, libgcc_s.so.1, libatomic.so.1, libm.so.6 |
-| **Static** (musl) | ~1.7 MB | ~5 ms | **None** |
+All aria-libc programs compile to ~2.2 MB fully static musl-linked binaries with zero runtime dependencies.
 
 ## Quick Start
 
 ### Building
 
 ```bash
-# Build musl (one-time)
+# Build musl (one-time, for hermetic static builds)
 cd musl-1.2.6
 ./configure --prefix=$(pwd)/../build/musl --disable-shared
 make -j$(nproc) && make install
 cd ..
 
-# Build all shims (shared + static + glibc compat)
-cd shim && make && cd ..
+# Build glibc compat shim (one-time)
+cd compat && cc -O2 -Wall -c glibc_compat.c -o glibc_compat.o && ar rcs libglibc_compat.a glibc_compat.o && cd ..
 ```
 
 ### Dynamic Build (default)
 
+No special link flags needed — aria-libc modules are `use`-imported directly:
+
 ```bash
-ariac myfile.aria -o myfile -L/path/to/aria-libc/shim -laria_libc_io
-LD_LIBRARY_PATH=/path/to/aria-libc/shim ./myfile
+ariac myfile.aria -o myfile
+./myfile
 ```
 
 ### Static Build (simple)
@@ -90,7 +93,7 @@ LD_LIBRARY_PATH=/path/to/aria-libc/shim ./myfile
 As of ariac v0.2.16+, use the `--static` flag for system static linking:
 
 ```bash
-ariac --static myfile.aria -o myfile_static -L/path/to/aria-libc/shim -laria_libc_io
+ariac --static myfile.aria -o myfile_static
 file myfile_static    # → "statically linked"
 ./myfile_static       # Just works
 ```
@@ -101,18 +104,12 @@ For zero-dependency, hermetic binaries that work on any Linux (no glibc needed):
 
 ```bash
 # Using the build script:
-./scripts/build_static.sh myfile.aria -o myfile_static -Lshim -laria_libc_io
+./scripts/build_static.sh myfile.aria -o myfile_static
 
 # The binary has zero dependencies:
 file myfile_static    # → "statically linked"
 ldd myfile_static     # → "not a dynamic executable"
 ./myfile_static       # Works on any x86-64 Linux
-```
-
-For programs using multiple modules:
-```bash
-./scripts/build_static.sh myfile.aria -o myfile_static \
-    -Lshim -laria_libc_io -laria_libc_string -laria_libc_mem
 ```
 
 ### Manual Static Build
@@ -126,13 +123,13 @@ ariac myfile.aria --emit-asm -o myfile.s
 # 2. Assemble
 clang -c myfile.s -o myfile.o
 
-# 3. Link against musl + aria runtime + shims
+# 3. Link against musl + aria runtime
 MUSL=build/musl/lib
 clang++ -static -nostdlib -nostartfiles \
     $MUSL/crt1.o $MUSL/crti.o \
     myfile.o \
     /path/to/libaria_runtime.a \
-    -Lshim -laria_libc_io -lglibc_compat \
+    -Lcompat -lglibc_compat \
     -L/usr/lib/gcc/x86_64-linux-gnu/13 -lstdc++ -lgcc -lgcc_eh -latomic \
     $MUSL/libc.a $MUSL/crtn.o \
     -o myfile_static
@@ -141,19 +138,8 @@ clang++ -static -nostdlib -nostartfiles \
 ## Testing
 
 ```bash
-# Run all tests (dynamic)
-cd tests
-for t in test_libc_*.aria test_use_*.aria; do
-    ariac "$t" -o "${t%.aria}" -L../shim -laria_libc_io -laria_libc_mem \
-        -laria_libc_string -laria_libc_math -laria_libc_time -laria_libc_process
-    LD_LIBRARY_PATH=../shim "./${t%.aria}"
-done
-
 # Run all tests (static, musl-linked)
 ./scripts/run_tests_static.sh
-
-# Performance benchmarks
-./scripts/benchmark.sh
 ```
 
 ## Usage
@@ -161,7 +147,8 @@ done
 ### With `use` Imports (recommended)
 
 ```aria
-use "../src/aria_libc_io.aria".*;
+use "../src/io_core.aria".*;
+use "../src/fs_core.aria".*;
 
 func:failsafe = int32(tbb32:err) {
     drop(println("Failsafe triggered"));
@@ -169,35 +156,15 @@ func:failsafe = int32(tbb32:err) {
 };
 
 func:main = int32() {
-    int64:bytes = raw(libc_write_file("/tmp/test.txt", "Hello from Aria!\n"));
-    drop(println("Wrote " + bytes + " bytes"));
+    int64:fd = raw(io_open_write("/tmp/test.txt"));
+    drop(raw(io_write_string(fd, "Hello from Aria!\n")));
+    drop(raw(io_close(fd)));
+    drop(println("Done"));
     exit(0);
 };
 ```
 
-### With Extern Blocks (direct FFI)
-
-```aria
-extern "aria_libc_io" {
-    func:aria_libc_io_write_file = int64(str:path, str:content);
-    func:aria_libc_io_read_file = str(str:path);
-    func:aria_libc_io_stat_exists = int64(str:path);
-}
-
-func:failsafe = int32(tbb32:err) {
-    drop(println("Failsafe triggered"));
-    exit(1);
-};
-
-func:main = int32() {
-    int64:wrote = aria_libc_io_write_file("/tmp/test.txt", "Hello!\n");
-    str:content = aria_libc_io_read_file("/tmp/test.txt");
-    drop(println("Read: " + content));
-    exit(0);
-};
-```
-
-See `src/aria_libc_*.aria` for the full API reference.
+See `src/` for the full set of available modules and their public functions.
 
 ## How Static Linking Works
 
@@ -208,20 +175,25 @@ The static build pipeline replaces glibc with musl libc:
 3. **clang++** links statically:
    - musl's CRT (crt1.o, crti.o, crtn.o) — program entry point
    - musl's libc.a — all C standard library functions
-   - libaria_runtime.a — Aria's runtime (GC, strings, threads, etc.)
-   - Per-module shim .a files — the C bridge between Aria FFI and libc
+   - libaria_runtime.a — Aria's runtime (GC, strings, threads, math, memory primitives)
    - libglibc_compat.a — bridges glibc-specific symbols that libstdc++ needs
    - GCC static libs — libstdc++.a, libgcc.a, libgcc_eh.a, libatomic.a
 
-The glibc compatibility shim (`shim/glibc_compat.c`) provides ~15 glibc-specific
+The glibc compatibility shim (`compat/glibc_compat.c`) provides ~15 glibc-specific
 symbols (fortified functions, LFS aliases, etc.) that libstdc++.a references when
 compiled on glibc systems. This lets us use the system's libstdc++ with musl's libc.
 
-## Long-term Vision
+## Architecture
 
-**Current (v0.2.x):** Wrapping existing C libc functions via musl/glibc through a C shim layer. Every libc function Aria programs commonly need is available without writing extern blocks.
+As of v0.3.0, aria-libc is a **standalone** pure Aria library:
 
-**Future (standalone):** A libc implementation written entirely in Aria — no musl, no glibc dependency at all. Aria programs would link against a pure-Aria standard library that provides POSIX-compatible system call wrappers, memory management, string operations, and I/O directly. This would make Aria a fully self-hosting systems language.
+- **System calls** are made directly via Aria's `sys()` built-in — no C wrapper functions needed
+- **Memory primitives** (byte/word read/write, memcpy, memset, memcmp) are provided by the compiler runtime (`libaria_runtime.a`)
+- **Math functions** (sin, cos, sqrt, etc.) are provided by the compiler runtime
+- **String conversions** (to_float, from_float, from_int) are provided by the compiler runtime
+- **Everything else** (networking, process management, filesystem, string parsing, buffers, time formatting) is implemented in pure Aria
+
+The only C code remaining is `compat/glibc_compat.c`, which is infrastructure for musl static linking (not an aria-libc dependency).
 
 ## Installation
 
@@ -237,8 +209,8 @@ cd musl-1.2.6
 make -j$(nproc) && make install
 cd ..
 
-# Build all shims
-cd shim && make && cd ..
+# Build glibc compat shim
+cd compat && cc -O2 -Wall -c glibc_compat.c -o glibc_compat.o && ar rcs libglibc_compat.a glibc_compat.o && cd ..
 ```
 
 ### From aria package registry

@@ -3,10 +3,10 @@
 use "../src/_alloc.aria".*;
 
 // ── Extern helpers for verifying memory contents ────────────────────
-extern func:aria_libc_mem_read_byte = int64(int64:ptr, int64:offset);
-extern func:aria_libc_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
-extern func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
-extern func:aria_libc_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_mem_read_byte = int64(int64:ptr, int64:offset);
+extern func:aria_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_mem_read_int64 = int64(int64:ptr, int64:offset);
+extern func:aria_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
 
 int64:pass_count = 0i64;
 int64:fail_count = 0i64;
@@ -79,20 +79,20 @@ func:main = int32() {
     drop(assert_neq_int(p1, 0i64, "malloc(256) returns non-null"));
 
     // Memory should be zero-filled (mmap guarantee)
-    int64:b0 = aria_libc_mem_read_byte(p1, 0i64);
+    int64:b0 = aria_mem_read_byte(p1, 0i64);
     drop(assert_eq_int(b0, 0i64, "malloc memory is zero-filled (byte 0)"));
-    int64:b100 = aria_libc_mem_read_byte(p1, 100i64);
+    int64:b100 = aria_mem_read_byte(p1, 100i64);
     drop(assert_eq_int(b100, 0i64, "malloc memory is zero-filled (byte 100)"));
 
     // Write + read back
-    drop(aria_libc_mem_write_byte(p1, 0i64, 65i64));   // 'A'
-    drop(aria_libc_mem_write_byte(p1, 1i64, 66i64));   // 'B'
-    drop(aria_libc_mem_write_byte(p1, 255i64, 90i64)); // 'Z'
-    int64:rb1 = aria_libc_mem_read_byte(p1, 0i64);
+    drop(aria_mem_write_byte(p1, 0i64, 65i64));   // 'A'
+    drop(aria_mem_write_byte(p1, 1i64, 66i64));   // 'B'
+    drop(aria_mem_write_byte(p1, 255i64, 90i64)); // 'Z'
+    int64:rb1 = aria_mem_read_byte(p1, 0i64);
     drop(assert_eq_int(rb1, 65i64, "write byte 65 at offset 0"));
-    int64:rb2 = aria_libc_mem_read_byte(p1, 1i64);
+    int64:rb2 = aria_mem_read_byte(p1, 1i64);
     drop(assert_eq_int(rb2, 66i64, "write byte 66 at offset 1"));
-    int64:rb3 = aria_libc_mem_read_byte(p1, 255i64);
+    int64:rb3 = aria_mem_read_byte(p1, 255i64);
     drop(assert_eq_int(rb3, 90i64, "write byte 90 at offset 255"));
 
     // ── Test 2: alloc_size ─────────────────────────────────────────
@@ -115,9 +115,9 @@ func:main = int32() {
     drop(assert_neq_int(p2, 0i64, "calloc(10, 64) returns non-null"));
 
     // calloc is zero-filled
-    int64:cb0 = aria_libc_mem_read_byte(p2, 0i64);
+    int64:cb0 = aria_mem_read_byte(p2, 0i64);
     drop(assert_eq_int(cb0, 0i64, "calloc memory is zero (byte 0)"));
-    int64:cb639 = aria_libc_mem_read_byte(p2, 639i64);
+    int64:cb639 = aria_mem_read_byte(p2, 639i64);
     drop(assert_eq_int(cb639, 0i64, "calloc memory is zero (byte 639)"));
 
     int64:csz = libc_alloc_size(p2) ?! 0i64;
@@ -131,17 +131,17 @@ func:main = int32() {
     drop(assert_neq_int(p3, 0i64, "malloc(128) for realloc test"));
 
     // Write sentinel data
-    drop(aria_libc_mem_write_int64(p3, 0i64, 0xDEADBEEFi64));
-    drop(aria_libc_mem_write_int64(p3, 8i64, 42i64));
+    drop(aria_mem_write_int64(p3, 0i64, 0xDEADBEEFi64));
+    drop(aria_mem_write_int64(p3, 8i64, 42i64));
 
     // Realloc to larger
     int64:p4 = libc_realloc(p3, 4096i64) ?! 0i64;
     drop(assert_neq_int(p4, 0i64, "realloc(128 -> 4096) returns non-null"));
 
     // Sentinel data preserved
-    int64:s1 = aria_libc_mem_read_int64(p4, 0i64);
+    int64:s1 = aria_mem_read_int64(p4, 0i64);
     drop(assert_eq_int(s1, 0xDEADBEEFi64, "realloc preserves data (sentinel 1)"));
-    int64:s2 = aria_libc_mem_read_int64(p4, 8i64);
+    int64:s2 = aria_mem_read_int64(p4, 8i64);
     drop(assert_eq_int(s2, 42i64, "realloc preserves data (sentinel 2)"));
 
     int64:rsz = libc_alloc_size(p4) ?! 0i64;
@@ -163,11 +163,11 @@ func:main = int32() {
     drop(assert_neq_int(big, 0i64, "malloc(1MB) succeeds"));
 
     // Write at boundaries
-    drop(aria_libc_mem_write_byte(big, 0i64, 0xAAi64));
-    drop(aria_libc_mem_write_byte(big, 1048575i64, 0xBBi64));
-    int64:bfirst = aria_libc_mem_read_byte(big, 0i64);
+    drop(aria_mem_write_byte(big, 0i64, 0xAAi64));
+    drop(aria_mem_write_byte(big, 1048575i64, 0xBBi64));
+    int64:bfirst = aria_mem_read_byte(big, 0i64);
     drop(assert_eq_int(bfirst, 0xAAi64, "1MB write at start"));
-    int64:blast = aria_libc_mem_read_byte(big, 1048575i64);
+    int64:blast = aria_mem_read_byte(big, 1048575i64);
     drop(assert_eq_int(blast, 0xBBi64, "1MB write at end"));
 
     drop(libc_release(big) ?! -1i64);

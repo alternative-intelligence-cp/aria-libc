@@ -1,0 +1,167 @@
+// _math.aria — Pure Aria math module (v0.3.0)
+//
+// Wraps math functions from the Aria compiler runtime (libaria_runtime.a).
+// No C shim needed — all functions are provided by the compiler runtime.
+//
+// Usage:
+//   use "../src/_math.aria".*;
+//   flt64:result = raw(math_sin(1.5707963267948966));
+
+// ── Extern declarations (compiler runtime — always linked) ──────────
+
+// Constants
+extern func:aria_math_pi = flt64();
+extern func:aria_math_e = flt64();
+
+// Trigonometric
+extern func:aria_math_sin = flt64(flt64:x);
+extern func:aria_math_cos = flt64(flt64:x);
+extern func:aria_math_tan = flt64(flt64:x);
+extern func:aria_math_asin = flt64(flt64:x);
+extern func:aria_math_acos = flt64(flt64:x);
+extern func:aria_math_atan = flt64(flt64:x);
+extern func:aria_math_atan2 = flt64(flt64:y, flt64:x);
+
+// Power / Exponential
+extern func:aria_math_sqrt = flt64(flt64:x);
+extern func:aria_math_pow = flt64(flt64:base, flt64:exponent);
+extern func:aria_math_exp = flt64(flt64:x);
+extern func:aria_math_log = flt64(flt64:x);
+extern func:aria_math_log10 = flt64(flt64:x);
+
+// Rounding
+extern func:aria_math_floor = flt64(flt64:x);
+extern func:aria_math_ceil = flt64(flt64:x);
+extern func:aria_math_round = flt64(flt64:x);
+extern func:aria_math_abs = flt64(flt64:x);
+extern func:aria_math_fmod = flt64(flt64:x, flt64:y);
+
+// Conversion
+extern func:aria_math_to_int = int64(flt64:x);
+extern func:aria_conv_from_float = string(flt64:val);
+
+// ── Public API ───────────────────────────────────────────────────────
+
+// -- Constants --
+
+pub func:math_pi = flt64() {
+    flt64:val = aria_math_pi();
+    pass(val);
+};
+
+pub func:math_e = flt64() {
+    flt64:val = aria_math_e();
+    pass(val);
+};
+
+// -- Trigonometric --
+
+pub func:math_sin = flt64(flt64:x) {
+    flt64:result = aria_math_sin(x);
+    pass(result);
+};
+
+pub func:math_cos = flt64(flt64:x) {
+    flt64:result = aria_math_cos(x);
+    pass(result);
+};
+
+pub func:math_tan = flt64(flt64:x) {
+    flt64:result = aria_math_tan(x);
+    pass(result);
+};
+
+pub func:math_asin = flt64(flt64:x) {
+    flt64:result = aria_math_asin(x);
+    pass(result);
+};
+
+pub func:math_acos = flt64(flt64:x) {
+    flt64:result = aria_math_acos(x);
+    pass(result);
+};
+
+pub func:math_atan = flt64(flt64:x) {
+    flt64:result = aria_math_atan(x);
+    pass(result);
+};
+
+pub func:math_atan2 = flt64(flt64:y, flt64:x) {
+    flt64:result = aria_math_atan2(y, x);
+    pass(result);
+};
+
+// -- Power / Exponential --
+
+pub func:math_sqrt = flt64(flt64:x) {
+    flt64:result = aria_math_sqrt(x);
+    pass(result);
+};
+
+pub func:math_pow = flt64(flt64:base, flt64:exponent) {
+    flt64:result = aria_math_pow(base, exponent);
+    pass(result);
+};
+
+pub func:math_exp = flt64(flt64:x) {
+    flt64:result = aria_math_exp(x);
+    pass(result);
+};
+
+pub func:math_log = flt64(flt64:x) {
+    flt64:result = aria_math_log(x);
+    pass(result);
+};
+
+pub func:math_log10 = flt64(flt64:x) {
+    flt64:result = aria_math_log10(x);
+    pass(result);
+};
+
+// -- Rounding --
+
+pub func:math_floor = flt64(flt64:x) {
+    flt64:result = aria_math_floor(x);
+    pass(result);
+};
+
+pub func:math_ceil = flt64(flt64:x) {
+    flt64:result = aria_math_ceil(x);
+    pass(result);
+};
+
+pub func:math_round = flt64(flt64:x) {
+    flt64:result = aria_math_round(x);
+    pass(result);
+};
+
+pub func:math_abs = flt64(flt64:x) {
+    flt64:result = aria_math_abs(x);
+    pass(result);
+};
+
+pub func:math_fmod = flt64(flt64:x, flt64:y) {
+    flt64:result = aria_math_fmod(x, y);
+    pass(result);
+};
+
+// -- Utility --
+
+pub func:math_to_int = int64(flt64:x) {
+    int64:result = aria_math_to_int(x);
+    pass(result);
+};
+
+pub func:math_approx_eq = int64(flt64:a, flt64:b, flt64:epsilon) {
+    flt64:diff = aria_math_abs(a - b);
+    int64:result = 0i64;
+    if (diff < epsilon) {
+        result = 1i64;
+    }
+    pass(result);
+};
+
+pub func:math_to_string = string(flt64:x) {
+    string:result = aria_conv_from_float(x);
+    pass(result);
+};

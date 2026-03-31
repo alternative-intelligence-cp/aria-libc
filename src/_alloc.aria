@@ -41,8 +41,8 @@ use "_constants.aria".*;
 // ── Extern helpers for header read/write ────────────────────────────
 // We need byte-level access to write/read the 16-byte header.
 // These are the same helpers used by _fs_readdir and _stat.
-extern func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
-extern func:aria_libc_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_mem_read_int64 = int64(int64:ptr, int64:offset);
+extern func:aria_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
 
 // ── Internal constants ──────────────────────────────────────────────
 int64:_ALLOC_HDR = 16i64;  // 16-byte header before user data
@@ -57,8 +57,8 @@ pub func:libc_malloc = int64(int64:size) {
         pass(0i64);
     }
     // Write header
-    drop(aria_libc_mem_write_int64(base, 0i64, total));
-    drop(aria_libc_mem_write_int64(base, 8i64, size));
+    drop(aria_mem_write_int64(base, 0i64, total));
+    drop(aria_mem_write_int64(base, 8i64, size));
     // Return pointer past header
     pass(base + _ALLOC_HDR);
 };
@@ -70,7 +70,7 @@ pub func:libc_release = int64(int64:ptr) {
         pass(0i64);
     }
     int64:base = ptr - _ALLOC_HDR;
-    int64:total = aria_libc_mem_read_int64(base, 0i64);
+    int64:total = aria_mem_read_int64(base, 0i64);
     Result<int64>:r = sys(MUNMAP, base, total);
     int64:val = r ? -1i64;
     pass(val);
@@ -86,7 +86,7 @@ pub func:libc_realloc = int64(int64:ptr, int64:new_size) {
         pass(fresh);
     }
     int64:base = ptr - _ALLOC_HDR;
-    int64:old_total = aria_libc_mem_read_int64(base, 0i64);
+    int64:old_total = aria_mem_read_int64(base, 0i64);
     int64:new_total = new_size + _ALLOC_HDR;
     Result<int64>:r = sys(MREMAP, base, old_total, new_total, MREMAP_MAYMOVE);
     int64:new_base = r ? 0i64;
@@ -94,8 +94,8 @@ pub func:libc_realloc = int64(int64:ptr, int64:new_size) {
         pass(0i64);
     }
     // Update header at new location
-    drop(aria_libc_mem_write_int64(new_base, 0i64, new_total));
-    drop(aria_libc_mem_write_int64(new_base, 8i64, new_size));
+    drop(aria_mem_write_int64(new_base, 0i64, new_total));
+    drop(aria_mem_write_int64(new_base, 8i64, new_size));
     pass(new_base + _ALLOC_HDR);
 };
 
@@ -115,6 +115,6 @@ pub func:libc_alloc_size = int64(int64:ptr) {
         pass(0i64);
     }
     int64:base = ptr - _ALLOC_HDR;
-    int64:user_size = aria_libc_mem_read_int64(base, 8i64);
+    int64:user_size = aria_mem_read_int64(base, 8i64);
     pass(user_size);
 };

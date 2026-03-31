@@ -21,7 +21,7 @@
 use "_constants.aria".*;
 
 // ── Extern helpers ──────────────────────────────────────────────────
-extern func:aria_libc_mem_read_int32 = int64(int64:ptr, int64:offset);
+extern func:aria_mem_read_int32 = int64(int64:ptr, int64:offset);
 
 // ══════════════════════════════════════════════════════════════════════
 // Pipe
@@ -45,8 +45,8 @@ pub func:libc_pipe = int64() {
     }
 
     // Read the two int32 fds
-    int64:read_fd = aria_libc_mem_read_int32(buf, 0i64);
-    int64:write_fd = aria_libc_mem_read_int32(buf, 4i64);
+    int64:read_fd = aria_mem_read_int32(buf, 0i64);
+    int64:write_fd = aria_mem_read_int32(buf, 4i64);
 
     drop(sys(MUNMAP, buf, 8i64));
 
@@ -69,8 +69,8 @@ pub func:libc_pipe_cloexec = int64() {
         pass(-1i64);
     }
 
-    int64:read_fd = aria_libc_mem_read_int32(buf, 0i64);
-    int64:write_fd = aria_libc_mem_read_int32(buf, 4i64);
+    int64:read_fd = aria_mem_read_int32(buf, 0i64);
+    int64:write_fd = aria_mem_read_int32(buf, 4i64);
 
     drop(sys(MUNMAP, buf, 8i64));
 

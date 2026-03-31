@@ -24,8 +24,8 @@ use "_constants.aria".*;
 use "_mmap.aria".*;
 
 // We need byte-level memory access for reading random bytes from buffer.
-extern func:aria_libc_mem_read_byte = int64(int64:ptr, int64:offset);
-extern func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
+extern func:aria_mem_read_byte = int64(int64:ptr, int64:offset);
+extern func:aria_mem_read_int64 = int64(int64:ptr, int64:offset);
 
 // ══════════════════════════════════════════════════════════════════════
 // getrandom — fill buffer with random bytes
@@ -62,7 +62,7 @@ pub func:libc_random_int64 = int64() {
     }
 
     // Read the 8-byte int64 from the buffer
-    int64:val = aria_libc_mem_read_int64(buf, 0i64);
+    int64:val = aria_mem_read_int64(buf, 0i64);
 
     // Release the buffer
     drop(libc_munmap(buf, 4096i64));
@@ -86,7 +86,7 @@ pub func:libc_random_byte = int64() {
         pass(-1i64);
     }
 
-    int64:val = aria_libc_mem_read_byte(buf, 0i64);
+    int64:val = aria_mem_read_byte(buf, 0i64);
     drop(libc_munmap(buf, 4096i64));
     pass(val);
 };

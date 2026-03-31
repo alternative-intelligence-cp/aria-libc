@@ -1,0 +1,32 @@
+// _str_conv.aria — String conversion functions (v0.3.0)
+//
+// Provides float-to-string and string-to-float conversions.
+// Wraps functions from the Aria compiler runtime (libaria_runtime.a).
+//
+// Usage:
+//   use "../src/_str_conv.aria".*;
+//   flt64:val = raw(str_to_float("3.14"));
+//   string:s = raw(str_from_float(3.14));
+
+// ── Extern declarations (compiler runtime) ──────────────────────────
+
+extern func:aria_conv_to_float = flt64(string:s);
+extern func:aria_conv_from_float = string(flt64:val);
+extern func:aria_conv_from_int = string(int64:val);
+
+// ── Public API ───────────────────────────────────────────────────────
+
+pub func:str_to_float = flt64(string:s) {
+    flt64:result = aria_conv_to_float(s);
+    pass(result);
+};
+
+pub func:str_from_float = flt64(flt64:val) {
+    string:result = aria_conv_from_float(val);
+    pass(result);
+};
+
+pub func:str_from_int = string(int64:val) {
+    string:result = aria_conv_from_int(val);
+    pass(result);
+};

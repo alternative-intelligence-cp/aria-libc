@@ -24,10 +24,10 @@
 use "_constants.aria".*;
 
 // ── Extern helpers ──────────────────────────────────────────────────
-extern func:aria_libc_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
-extern func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
-extern func:aria_libc_mem_read_int32 = int64(int64:ptr, int64:offset);
-extern func:aria_libc_mem_write_string = int64(int64:ptr, string:s);
+extern func:aria_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_mem_read_int64 = int64(int64:ptr, int64:offset);
+extern func:aria_mem_read_int32 = int64(int64:ptr, int64:offset);
+extern func:aria_mem_write_string = int64(int64:ptr, string:s);
 extern func:strdup = string(int64:ptr);
 
 // ══════════════════════════════════════════════════════════════════════
@@ -75,7 +75,7 @@ pub func:libc_waitpid = int64(int64:pid) {
         pass(-1i64);
     }
 
-    int64:status = aria_libc_mem_read_int32(buf, 0i64);
+    int64:status = aria_mem_read_int32(buf, 0i64);
     drop(sys(MUNMAP, buf, 8i64));
     pass(status);
 };
@@ -143,11 +143,11 @@ pub func:_argv_build_1 = int64(string:arg0) {
         drop(sys(MUNMAP, buf, 16i64));
         pass(0i64);
     }
-    drop(aria_libc_mem_write_string(sbuf, arg0));
+    drop(aria_mem_write_string(sbuf, arg0));
 
     // argv[0] = sbuf, argv[1] = NULL
-    drop(aria_libc_mem_write_int64(buf, 0i64, sbuf));
-    drop(aria_libc_mem_write_int64(buf, 8i64, 0i64));
+    drop(aria_mem_write_int64(buf, 0i64, sbuf));
+    drop(aria_mem_write_int64(buf, 8i64, 0i64));
 
     pass(buf);
 };
@@ -162,16 +162,16 @@ pub func:_argv_build_2 = int64(string:arg0, string:arg1) {
     int64:slen0 = string_length(arg0) + 1i64;
     Result<int64>:s0_r = sys(MMAP, 0i64, slen0, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
     int64:sbuf0 = s0_r ? 0i64;
-    drop(aria_libc_mem_write_string(sbuf0, arg0));
+    drop(aria_mem_write_string(sbuf0, arg0));
 
     int64:slen1 = string_length(arg1) + 1i64;
     Result<int64>:s1_r = sys(MMAP, 0i64, slen1, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
     int64:sbuf1 = s1_r ? 0i64;
-    drop(aria_libc_mem_write_string(sbuf1, arg1));
+    drop(aria_mem_write_string(sbuf1, arg1));
 
-    drop(aria_libc_mem_write_int64(buf, 0i64, sbuf0));
-    drop(aria_libc_mem_write_int64(buf, 8i64, sbuf1));
-    drop(aria_libc_mem_write_int64(buf, 16i64, 0i64));
+    drop(aria_mem_write_int64(buf, 0i64, sbuf0));
+    drop(aria_mem_write_int64(buf, 8i64, sbuf1));
+    drop(aria_mem_write_int64(buf, 16i64, 0i64));
 
     pass(buf);
 };
@@ -186,22 +186,22 @@ pub func:_argv_build_3 = int64(string:arg0, string:arg1, string:arg2) {
     int64:slen0 = string_length(arg0) + 1i64;
     Result<int64>:s0_r = sys(MMAP, 0i64, slen0, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
     int64:sbuf0 = s0_r ? 0i64;
-    drop(aria_libc_mem_write_string(sbuf0, arg0));
+    drop(aria_mem_write_string(sbuf0, arg0));
 
     int64:slen1 = string_length(arg1) + 1i64;
     Result<int64>:s1_r = sys(MMAP, 0i64, slen1, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
     int64:sbuf1 = s1_r ? 0i64;
-    drop(aria_libc_mem_write_string(sbuf1, arg1));
+    drop(aria_mem_write_string(sbuf1, arg1));
 
     int64:slen2 = string_length(arg2) + 1i64;
     Result<int64>:s2_r = sys(MMAP, 0i64, slen2, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
     int64:sbuf2 = s2_r ? 0i64;
-    drop(aria_libc_mem_write_string(sbuf2, arg2));
+    drop(aria_mem_write_string(sbuf2, arg2));
 
-    drop(aria_libc_mem_write_int64(buf, 0i64, sbuf0));
-    drop(aria_libc_mem_write_int64(buf, 8i64, sbuf1));
-    drop(aria_libc_mem_write_int64(buf, 16i64, sbuf2));
-    drop(aria_libc_mem_write_int64(buf, 24i64, 0i64));
+    drop(aria_mem_write_int64(buf, 0i64, sbuf0));
+    drop(aria_mem_write_int64(buf, 8i64, sbuf1));
+    drop(aria_mem_write_int64(buf, 16i64, sbuf2));
+    drop(aria_mem_write_int64(buf, 24i64, 0i64));
 
     pass(buf);
 };
@@ -216,7 +216,7 @@ pub func:_argv_release = int64(int64:argv, int64:count) {
     // Free each string buffer stored in the argv array
     loop(0, count, 1) {
         int64:offset = $ * 8i64;
-        int64:sptr = aria_libc_mem_read_int64(argv, offset);
+        int64:sptr = aria_mem_read_int64(argv, offset);
         if (sptr > 0i64) {
             drop(sys(MUNMAP, sptr, PATH_MAX_SIZE));
         }
@@ -232,7 +232,7 @@ pub func:_envp_empty = int64() {
     Result<int64>:buf_r = sys(MMAP, 0i64, 8i64, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
     int64:buf = buf_r ? 0i64;
     if (buf < 1i64) { pass(0i64); }
-    drop(aria_libc_mem_write_int64(buf, 0i64, 0i64));
+    drop(aria_mem_write_int64(buf, 0i64, 0i64));
     pass(buf);
 };
 

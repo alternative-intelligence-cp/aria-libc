@@ -4,10 +4,10 @@ use "../src/_mmap.aria".*;
 use "../src/_constants.aria".*;
 
 // ── Extern helpers for verifying memory contents ────────────────────
-extern func:aria_libc_mem_read_byte = int64(int64:ptr, int64:offset);
-extern func:aria_libc_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
-extern func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
-extern func:aria_libc_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_mem_read_byte = int64(int64:ptr, int64:offset);
+extern func:aria_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_mem_read_int64 = int64(int64:ptr, int64:offset);
+extern func:aria_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
 
 int64:pass_count = 0i64;
 int64:fail_count = 0i64;
@@ -80,19 +80,19 @@ func:main = int32() {
     drop(assert_neq_int(ptr1, 0i64, "mmap_anon returns non-null"));
 
     // mmap returns zeroed memory
-    int64:byte0 = aria_libc_mem_read_byte(ptr1, 0i64);
+    int64:byte0 = aria_mem_read_byte(ptr1, 0i64);
     drop(assert_eq_int(byte0, 0i64, "mmap memory is zero-filled (byte 0)"));
-    int64:byte100 = aria_libc_mem_read_byte(ptr1, 100i64);
+    int64:byte100 = aria_mem_read_byte(ptr1, 100i64);
     drop(assert_eq_int(byte100, 0i64, "mmap memory is zero-filled (byte 100)"));
 
     // ── Test 2: write + read back ──────────────────────────────────
     println("-- write + read --");
-    drop(aria_libc_mem_write_byte(ptr1, 0i64, 42i64));
-    int64:rb1 = aria_libc_mem_read_byte(ptr1, 0i64);
+    drop(aria_mem_write_byte(ptr1, 0i64, 42i64));
+    int64:rb1 = aria_mem_read_byte(ptr1, 0i64);
     drop(assert_eq_int(rb1, 42i64, "write byte 42, read back 42"));
 
-    drop(aria_libc_mem_write_int64(ptr1, 8i64, 123456789i64));
-    int64:ri1 = aria_libc_mem_read_int64(ptr1, 8i64);
+    drop(aria_mem_write_int64(ptr1, 8i64, 123456789i64));
+    int64:ri1 = aria_mem_read_int64(ptr1, 8i64);
     drop(assert_eq_int(ri1, 123456789i64, "write int64, read back correctly"));
 
     // ── Test 3: munmap ─────────────────────────────────────────────
@@ -106,28 +106,28 @@ func:main = int32() {
     drop(assert_neq_int(ptr2, 0i64, "mmap explicit returns valid pointer"));
 
     // Write at beginning and end of region
-    drop(aria_libc_mem_write_byte(ptr2, 0i64, 0xAAi64));
-    drop(aria_libc_mem_write_byte(ptr2, 8191i64, 0xBBi64));
-    int64:rb2 = aria_libc_mem_read_byte(ptr2, 0i64);
+    drop(aria_mem_write_byte(ptr2, 0i64, 0xAAi64));
+    drop(aria_mem_write_byte(ptr2, 8191i64, 0xBBi64));
+    int64:rb2 = aria_mem_read_byte(ptr2, 0i64);
     drop(assert_eq_int(rb2, 0xAAi64, "write 0xAA at start of 8KB region"));
-    int64:rb3 = aria_libc_mem_read_byte(ptr2, 8191i64);
+    int64:rb3 = aria_mem_read_byte(ptr2, 8191i64);
     drop(assert_eq_int(rb3, 0xBBi64, "write 0xBB at end of 8KB region"));
 
     // ── Test 5: mremap — grow a mapping ────────────────────────────
     println("-- mremap --");
     // Write sentinel before remap
-    drop(aria_libc_mem_write_int64(ptr2, 0i64, 99887766i64));
+    drop(aria_mem_write_int64(ptr2, 0i64, 99887766i64));
 
     int64:ptr3 = libc_mremap(ptr2, 8192i64, 16384i64, MREMAP_MAYMOVE) ?! 0i64;
     drop(assert_neq_int(ptr3, 0i64, "mremap returns non-null"));
 
     // Sentinel data preserved after remap
-    int64:sentinel = aria_libc_mem_read_int64(ptr3, 0i64);
+    int64:sentinel = aria_mem_read_int64(ptr3, 0i64);
     drop(assert_eq_int(sentinel, 99887766i64, "mremap preserves data"));
 
     // New region is accessible
-    drop(aria_libc_mem_write_byte(ptr3, 16383i64, 0xCCi64));
-    int64:rb4 = aria_libc_mem_read_byte(ptr3, 16383i64);
+    drop(aria_mem_write_byte(ptr3, 16383i64, 0xCCi64));
+    int64:rb4 = aria_mem_read_byte(ptr3, 16383i64);
     drop(assert_eq_int(rb4, 0xCCi64, "mremap new region is writable"));
 
     // ── Test 6: mprotect ───────────────────────────────────────────
@@ -147,8 +147,8 @@ func:main = int32() {
     drop(assert_neq_int(ptr4, 0i64, "1MB mmap_anon succeeds"));
 
     // Write at 1MB boundary
-    drop(aria_libc_mem_write_byte(ptr4, 1048575i64, 0xFFi64));
-    int64:rb5 = aria_libc_mem_read_byte(ptr4, 1048575i64);
+    drop(aria_mem_write_byte(ptr4, 1048575i64, 0xFFi64));
+    int64:rb5 = aria_mem_read_byte(ptr4, 1048575i64);
     drop(assert_eq_int(rb5, 0xFFi64, "write at end of 1MB region"));
 
     // ── Cleanup ────────────────────────────────────────────────────

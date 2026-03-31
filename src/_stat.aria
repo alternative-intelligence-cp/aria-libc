@@ -38,8 +38,8 @@ int64:_STAT_AT_FDCWD = 0i64 - 100i64;
 // ── Struct field read helpers (temporary C shim dependency) ──────────
 // These read raw memory at ptr+offset. They will be replaced by native
 // Aria pointer dereference when available.
-extern func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
-extern func:aria_libc_mem_read_int32 = int64(int64:ptr, int64:offset);
+extern func:aria_mem_read_int64 = int64(int64:ptr, int64:offset);
+extern func:aria_mem_read_int32 = int64(int64:ptr, int64:offset);
 
 // ── struct stat buffer size ─────────────────────────────────────────
 int64:STAT_BUF_SIZE = 144i64;
@@ -94,7 +94,7 @@ func:_stat_path = int64(string:path) {
 pub func:libc_stat_size = int64(string:path) {
     int64:buf = _stat_path(path) ?! 0i64;
     if (buf == 0i64) { pass(-1i64); }
-    int64:sz = aria_libc_mem_read_int64(buf, STAT_OFF_SIZE);
+    int64:sz = aria_mem_read_int64(buf, STAT_OFF_SIZE);
     drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
     pass(sz);
 };
@@ -102,7 +102,7 @@ pub func:libc_stat_size = int64(string:path) {
 pub func:libc_stat_mode = int64(string:path) {
     int64:buf = _stat_path(path) ?! 0i64;
     if (buf == 0i64) { pass(-1i64); }
-    int64:mode = aria_libc_mem_read_int32(buf, STAT_OFF_MODE);
+    int64:mode = aria_mem_read_int32(buf, STAT_OFF_MODE);
     drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
     pass(mode);
 };
@@ -110,7 +110,7 @@ pub func:libc_stat_mode = int64(string:path) {
 pub func:libc_stat_mtime = int64(string:path) {
     int64:buf = _stat_path(path) ?! 0i64;
     if (buf == 0i64) { pass(-1i64); }
-    int64:mtime = aria_libc_mem_read_int64(buf, STAT_OFF_MTIME);
+    int64:mtime = aria_mem_read_int64(buf, STAT_OFF_MTIME);
     drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
     pass(mtime);
 };
@@ -118,7 +118,7 @@ pub func:libc_stat_mtime = int64(string:path) {
 pub func:libc_stat_uid = int64(string:path) {
     int64:buf = _stat_path(path) ?! 0i64;
     if (buf == 0i64) { pass(-1i64); }
-    int64:uid = aria_libc_mem_read_int32(buf, STAT_OFF_UID);
+    int64:uid = aria_mem_read_int32(buf, STAT_OFF_UID);
     drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
     pass(uid);
 };
@@ -126,7 +126,7 @@ pub func:libc_stat_uid = int64(string:path) {
 pub func:libc_stat_gid = int64(string:path) {
     int64:buf = _stat_path(path) ?! 0i64;
     if (buf == 0i64) { pass(-1i64); }
-    int64:gid = aria_libc_mem_read_int32(buf, STAT_OFF_GID);
+    int64:gid = aria_mem_read_int32(buf, STAT_OFF_GID);
     drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
     pass(gid);
 };
@@ -134,7 +134,7 @@ pub func:libc_stat_gid = int64(string:path) {
 pub func:libc_stat_ino = int64(string:path) {
     int64:buf = _stat_path(path) ?! 0i64;
     if (buf == 0i64) { pass(-1i64); }
-    int64:ino = aria_libc_mem_read_int64(buf, STAT_OFF_INO);
+    int64:ino = aria_mem_read_int64(buf, STAT_OFF_INO);
     drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
     pass(ino);
 };
@@ -142,7 +142,7 @@ pub func:libc_stat_ino = int64(string:path) {
 pub func:libc_stat_nlink = int64(string:path) {
     int64:buf = _stat_path(path) ?! 0i64;
     if (buf == 0i64) { pass(-1i64); }
-    int64:nlink = aria_libc_mem_read_int64(buf, STAT_OFF_NLINK);
+    int64:nlink = aria_mem_read_int64(buf, STAT_OFF_NLINK);
     drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
     pass(nlink);
 };
@@ -150,7 +150,7 @@ pub func:libc_stat_nlink = int64(string:path) {
 pub func:libc_stat_blksize = int64(string:path) {
     int64:buf = _stat_path(path) ?! 0i64;
     if (buf == 0i64) { pass(-1i64); }
-    int64:blk = aria_libc_mem_read_int64(buf, STAT_OFF_BLKSIZE);
+    int64:blk = aria_mem_read_int64(buf, STAT_OFF_BLKSIZE);
     drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
     pass(blk);
 };
@@ -158,7 +158,7 @@ pub func:libc_stat_blksize = int64(string:path) {
 pub func:libc_stat_blocks = int64(string:path) {
     int64:buf = _stat_path(path) ?! 0i64;
     if (buf == 0i64) { pass(-1i64); }
-    int64:blocks = aria_libc_mem_read_int64(buf, STAT_OFF_BLOCKS);
+    int64:blocks = aria_mem_read_int64(buf, STAT_OFF_BLOCKS);
     drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
     pass(blocks);
 };
@@ -166,7 +166,7 @@ pub func:libc_stat_blocks = int64(string:path) {
 pub func:libc_stat_atime = int64(string:path) {
     int64:buf = _stat_path(path) ?! 0i64;
     if (buf == 0i64) { pass(-1i64); }
-    int64:atime = aria_libc_mem_read_int64(buf, STAT_OFF_ATIME);
+    int64:atime = aria_mem_read_int64(buf, STAT_OFF_ATIME);
     drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
     pass(atime);
 };
@@ -174,7 +174,7 @@ pub func:libc_stat_atime = int64(string:path) {
 pub func:libc_stat_ctime = int64(string:path) {
     int64:buf = _stat_path(path) ?! 0i64;
     if (buf == 0i64) { pass(-1i64); }
-    int64:ctime = aria_libc_mem_read_int64(buf, STAT_OFF_CTIME);
+    int64:ctime = aria_mem_read_int64(buf, STAT_OFF_CTIME);
     drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
     pass(ctime);
 };
@@ -184,7 +184,7 @@ pub func:libc_stat_ctime = int64(string:path) {
 pub func:libc_stat_is_dir = int64(string:path) {
     int64:buf = _stat_path(path) ?! 0i64;
     if (buf == 0i64) { pass(0i64); }
-    int64:mode = aria_libc_mem_read_int32(buf, STAT_OFF_MODE);
+    int64:mode = aria_mem_read_int32(buf, STAT_OFF_MODE);
     drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
     uint64:umode = @cast<uint64>(mode);
     uint64:ufmt = @cast<uint64>(S_IFMT);
@@ -199,7 +199,7 @@ pub func:libc_stat_is_dir = int64(string:path) {
 pub func:libc_stat_is_file = int64(string:path) {
     int64:buf = _stat_path(path) ?! 0i64;
     if (buf == 0i64) { pass(0i64); }
-    int64:mode = aria_libc_mem_read_int32(buf, STAT_OFF_MODE);
+    int64:mode = aria_mem_read_int32(buf, STAT_OFF_MODE);
     drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
     uint64:umode = @cast<uint64>(mode);
     uint64:ufmt = @cast<uint64>(S_IFMT);
@@ -226,7 +226,7 @@ pub func:libc_stat_is_symlink = int64(string:path) {
         pass(0i64);
     }
 
-    int64:mode = aria_libc_mem_read_int32(buf, STAT_OFF_MODE);
+    int64:mode = aria_mem_read_int32(buf, STAT_OFF_MODE);
     drop(sys(MUNMAP, buf, STAT_BUF_SIZE));
     uint64:umode = @cast<uint64>(mode);
     uint64:ufmt = @cast<uint64>(S_IFMT);
@@ -264,25 +264,25 @@ pub func:libc_stat_buf_release = int64(int64:buf) {
 };
 
 pub func:libc_stat_buf_size = int64(int64:buf) {
-    pass(aria_libc_mem_read_int64(buf, STAT_OFF_SIZE));
+    pass(aria_mem_read_int64(buf, STAT_OFF_SIZE));
 };
 
 pub func:libc_stat_buf_mode = int64(int64:buf) {
-    pass(aria_libc_mem_read_int32(buf, STAT_OFF_MODE));
+    pass(aria_mem_read_int32(buf, STAT_OFF_MODE));
 };
 
 pub func:libc_stat_buf_mtime = int64(int64:buf) {
-    pass(aria_libc_mem_read_int64(buf, STAT_OFF_MTIME));
+    pass(aria_mem_read_int64(buf, STAT_OFF_MTIME));
 };
 
 pub func:libc_stat_buf_uid = int64(int64:buf) {
-    pass(aria_libc_mem_read_int32(buf, STAT_OFF_UID));
+    pass(aria_mem_read_int32(buf, STAT_OFF_UID));
 };
 
 pub func:libc_stat_buf_gid = int64(int64:buf) {
-    pass(aria_libc_mem_read_int32(buf, STAT_OFF_GID));
+    pass(aria_mem_read_int32(buf, STAT_OFF_GID));
 };
 
 pub func:libc_stat_buf_ino = int64(int64:buf) {
-    pass(aria_libc_mem_read_int64(buf, STAT_OFF_INO));
+    pass(aria_mem_read_int64(buf, STAT_OFF_INO));
 };

@@ -18,49 +18,33 @@ cd "$PROJECT_DIR"
 # ── Test definitions ─────────────────────────────────────────────────
 # Format: test_name:aria_file:link_flags
 declare -a ALL_TESTS=(
-    "io:tests/test_libc_io.aria:-laria_libc_io"
-    "mem:tests/test_libc_mem.aria:-laria_libc_mem"
-    "string:tests/test_libc_string.aria:-laria_libc_string -laria_libc_mem"
-    "math:tests/test_libc_math.aria:-laria_libc_math"
-    "time:tests/test_libc_time.aria:-laria_libc_time"
-    "process:tests/test_libc_process.aria:-laria_libc_process"
-    "use_import:tests/test_use_import.aria:-laria_libc_io"
-    "use_mem:tests/test_use_mem.aria:-laria_libc_mem"
-    "use_string:tests/test_use_string.aria:-laria_libc_string -laria_libc_mem"
-    "use_math:tests/test_use_math.aria:-laria_libc_math"
-    "use_time:tests/test_use_time.aria:-laria_libc_time"
-    "use_process:tests/test_use_process.aria:-laria_libc_process"
-    "net:tests/test_libc_net.aria:-laria_libc_net"
-    "use_net:tests/test_use_net.aria:-laria_libc_net"
-    "posix:tests/test_libc_posix.aria:-laria_libc_posix"
-    "use_posix:tests/test_use_posix.aria:-laria_libc_posix"
-    "fs:tests/test_libc_fs.aria:-laria_libc_fs -laria_libc_io"
-    "use_fs:tests/test_use_fs.aria:-laria_libc_fs -laria_libc_io"
-    # v0.2.1: Pure Aria sys() modules (no C shim link flags except where noted)
+    # v0.2.1: Pure Aria sys() modules
     "errno:tests/test_errno.aria:"
     "identity:tests/test_identity.aria:"
     "io_core:tests/test_io_core.aria:"
-    "stat:tests/test_stat.aria:-laria_libc_mem"
+    "stat:tests/test_stat.aria:"
     # v0.2.2: Pure Aria sys() filesystem modules
     "fs_core:tests/test_fs_core.aria:"
-    "fs_link:tests/test_fs_link.aria:-laria_libc_mem"
+    "fs_link:tests/test_fs_link.aria:"
     "fs_dir:tests/test_fs_dir.aria:"
-    "fs_readdir:tests/test_fs_readdir.aria:-laria_libc_mem"
+    "fs_readdir:tests/test_fs_readdir.aria:"
     # v0.2.3: Pure Aria sys() memory management
-    "mmap:tests/test_mmap.aria:-laria_libc_mem"
-    "alloc:tests/test_alloc.aria:-laria_libc_mem"
-    "buf:tests/test_buf.aria:-laria_libc_mem"
+    "mmap:tests/test_mmap.aria:"
+    "alloc:tests/test_alloc.aria:"
+    "buf:tests/test_buf.aria:"
     # v0.2.4: Pure Aria sys() time + clock
-    "time_pure:tests/test_time_pure.aria:-laria_libc_mem"
+    "time_pure:tests/test_time_pure.aria:"
     "time_fmt:tests/test_time_fmt.aria:"
     # v0.2.5: Pure Aria sys() networking
-    "net_pure:tests/test_net_pure.aria:-laria_libc_mem"
+    "net_pure:tests/test_net_pure.aria:"
     # v0.2.6: Pure Aria sys() process management
-    "proc_pure:tests/test_proc_pure.aria:-laria_libc_mem"
+    "proc_pure:tests/test_proc_pure.aria:"
     # v0.2.7: POSIX extras + errno table
-    "posix_extra:tests/test_posix_extra.aria:-laria_libc_mem"
+    "posix_extra:tests/test_posix_extra.aria:"
     # v0.2.8: Pure Aria string operations
-    "str_pure:tests/test_str_pure.aria:-laria_libc_mem"
+    "str_pure:tests/test_str_pure.aria:"
+    # v0.3.0: Pure Aria math (from compiler runtime)
+    "math_pure:tests/test_math_pure.aria:"
 )
 
 # ── Filter tests if args provided ───────────────────────────────────
@@ -104,7 +88,7 @@ for entry in "${TESTS[@]}"; do
     printf "  %-20s " "[$name]"
     
     # Build
-    if ! "$BUILD_STATIC" "$aria_file" -o "$BIN" -Lshim $link_flag 2>/tmp/static_build_err; then
+    if ! "$BUILD_STATIC" "$aria_file" -o "$BIN" $link_flag 2>/tmp/static_build_err; then
         echo "BUILD FAIL"
         FAILED=$((FAILED + 1))
         FAIL_LIST+=("$name (build)")

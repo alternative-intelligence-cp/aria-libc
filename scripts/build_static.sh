@@ -10,12 +10,11 @@
 #   MUSL_DIR    — musl install prefix         (default: build/musl)
 #   GCC_LIB     — GCC static lib directory    (default: auto-detect)
 #   ARIA_RT     — libaria_runtime.a path      (default: auto-detect)
-#   SHIM_DIR    — shim/ directory             (default: shim/)
+#   COMPAT_DIR  — compat/ directory           (default: compat/)
 #   VERBOSE     — set to 1 for debug output
 #
 # Example:
-#   ./scripts/build_static.sh tests/test_libc_io.aria -o test_io_static \
-#       -Lshim -laria_libc_io
+#   ./scripts/build_static.sh tests/test_alloc.aria -o test_alloc_static
 # ─────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -26,7 +25,7 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ARIAC="${ARIAC:-$(realpath "$PROJECT_DIR/../aria/build/ariac" 2>/dev/null || echo "ariac")}"
 MUSL_DIR="${MUSL_DIR:-$PROJECT_DIR/build/musl}"
 ARIA_RT="${ARIA_RT:-$(realpath "$PROJECT_DIR/../aria/build/libaria_runtime.a" 2>/dev/null || echo "")}"
-SHIM_DIR="${SHIM_DIR:-$PROJECT_DIR/shim}"
+COMPAT_DIR="${COMPAT_DIR:-$PROJECT_DIR/compat}"
 VERBOSE="${VERBOSE:-0}"
 
 # Auto-detect GCC static libs
@@ -46,7 +45,7 @@ fail() { echo "ERROR: $*" >&2; exit 1; }
 [[ -f "$MUSL_DIR/lib/libc.a" ]]  || fail "musl libc.a not found at: $MUSL_DIR/lib/"
 [[ -f "$MUSL_DIR/lib/crt1.o" ]]  || fail "musl crt1.o not found at: $MUSL_DIR/lib/"
 [[ -f "$ARIA_RT" ]]               || fail "libaria_runtime.a not found at: $ARIA_RT"
-[[ -f "$SHIM_DIR/libglibc_compat.a" ]] || fail "libglibc_compat.a not found in: $SHIM_DIR/"
+[[ -f "$COMPAT_DIR/libglibc_compat.a" ]] || fail "libglibc_compat.a not found in: $COMPAT_DIR/"
 [[ -f "$GCC_LIB/libstdc++.a" ]]  || fail "libstdc++.a not found in: $GCC_LIB"
 
 # ── Parse arguments ─────────────────────────────────────────────────
@@ -92,35 +91,29 @@ OBJ_FILE="$TMPDIR/output.o"
 [[ "$VERBOSE" == "1" ]] && echo "[2/3] assembly → object"
 clang -c "$ASM_FILE" -o "$OBJ_FILE"
 
-# Step 2b: Rebuild shim C files with musl headers for struct layout compatibility
-MUSL_SHIM_DIR="$TMPDIR/musl-shims"
-mkdir -p "$MUSL_SHIM_DIR"
+# Step 2b: Rebuild glibc_compat with musl headers for struct layout compatibility
+MUSL_COMPAT_DIR="$TMPDIR/musl-compat"
+mkdir -p "$MUSL_COMPAT_DIR"
 CLANG_BUILTINS="$(clang -print-resource-dir)/include"
 
-for flag in "${USER_LINK_FLAGS[@]}"; do
-    if [[ "$flag" == -l* ]]; then
-        libname="${flag#-l}"
-        src="$SHIM_DIR/${libname}.c"
-        if [[ -f "$src" ]]; then
-            [[ "$VERBOSE" == "1" ]] && echo "  rebuilding $libname with musl headers"
-            clang -O2 -Wall -Wextra -fPIC -c -nostdinc \
-                -isystem "$MUSL_DIR/include" \
-                -isystem "$CLANG_BUILTINS" \
-                "$src" -o "$MUSL_SHIM_DIR/${libname}.o"
-            ar rcs "$MUSL_SHIM_DIR/lib${libname}.a" "$MUSL_SHIM_DIR/${libname}.o"
-        fi
-    fi
-done
+if [[ -f "$COMPAT_DIR/glibc_compat.c" ]]; then
+    [[ "$VERBOSE" == "1" ]] && echo "  rebuilding glibc_compat with musl headers"
+    clang -O2 -Wall -fPIC -c -nostdinc \
+        -isystem "$MUSL_DIR/include" \
+        -isystem "$CLANG_BUILTINS" \
+        "$COMPAT_DIR/glibc_compat.c" -o "$MUSL_COMPAT_DIR/glibc_compat.o"
+    ar rcs "$MUSL_COMPAT_DIR/libglibc_compat.a" "$MUSL_COMPAT_DIR/glibc_compat.o"
+fi
 
 # Step 3: Static link with musl
-[[ "$VERBOSE" == "1" ]] && echo "[3/3] static link (musl + aria runtime + shim)"
+[[ "$VERBOSE" == "1" ]] && echo "[3/3] static link (musl + aria runtime)"
 clang++ -static -nostdlib -nostartfiles \
     "$MUSL_DIR/lib/crt1.o" \
     "$MUSL_DIR/lib/crti.o" \
     "$OBJ_FILE" \
     "$ARIA_RT" \
-    -L"$MUSL_SHIM_DIR" \
-    -L"$SHIM_DIR" \
+    -L"$MUSL_COMPAT_DIR" \
+    -L"$COMPAT_DIR" \
     "${USER_LINK_FLAGS[@]}" \
     -lglibc_compat \
     -L"$GCC_LIB" -lstdc++ -lgcc -lgcc_eh -latomic \

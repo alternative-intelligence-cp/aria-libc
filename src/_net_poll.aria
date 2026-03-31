@@ -20,8 +20,8 @@
 use "_constants.aria".*;
 
 // ── Extern helpers for byte-level struct access ─────────────────────
-extern func:aria_libc_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
-extern func:aria_libc_mem_read_byte = int64(int64:ptr, int64:offset);
+extern func:aria_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_mem_read_byte = int64(int64:ptr, int64:offset);
 
 // ── Internal: write pollfd struct fields via bytes ──────────────────
 
@@ -34,10 +34,10 @@ func:_write_int32_le = int64(int64:ptr, int64:offset, int64:val) {
     int64:b2 = v2 - v2 / 256i64 * 256i64;
     int64:v3 = v2 / 256i64;
     int64:b3 = v3 - v3 / 256i64 * 256i64;
-    drop(aria_libc_mem_write_byte(ptr, offset, b0));
-    drop(aria_libc_mem_write_byte(ptr, offset + 1i64, b1));
-    drop(aria_libc_mem_write_byte(ptr, offset + 2i64, b2));
-    drop(aria_libc_mem_write_byte(ptr, offset + 3i64, b3));
+    drop(aria_mem_write_byte(ptr, offset, b0));
+    drop(aria_mem_write_byte(ptr, offset + 1i64, b1));
+    drop(aria_mem_write_byte(ptr, offset + 2i64, b2));
+    drop(aria_mem_write_byte(ptr, offset + 3i64, b3));
     pass(0i64);
 };
 
@@ -45,15 +45,15 @@ func:_write_int32_le = int64(int64:ptr, int64:offset, int64:val) {
 func:_write_int16_le = int64(int64:ptr, int64:offset, int64:val) {
     int64:b0 = val - val / 256i64 * 256i64;
     int64:b1 = val / 256i64;
-    drop(aria_libc_mem_write_byte(ptr, offset, b0));
-    drop(aria_libc_mem_write_byte(ptr, offset + 1i64, b1));
+    drop(aria_mem_write_byte(ptr, offset, b0));
+    drop(aria_mem_write_byte(ptr, offset + 1i64, b1));
     pass(0i64);
 };
 
 // Read int16 as 2 little-endian bytes from ptr+offset
 func:_read_int16_le = int64(int64:ptr, int64:offset) {
-    int64:b0 = aria_libc_mem_read_byte(ptr, offset);
-    int64:b1 = aria_libc_mem_read_byte(ptr, offset + 1i64);
+    int64:b0 = aria_mem_read_byte(ptr, offset);
+    int64:b1 = aria_mem_read_byte(ptr, offset + 1i64);
     pass(b1 * 256i64 + b0);
 };
 

@@ -1,5 +1,5 @@
 // _str_search.aria — Pure Aria string search and comparison
-// Uses aria_libc_mem_string_byte_at from C mem shim for byte-level access.
+// Uses aria_string_byte_at from C mem shim for byte-level access.
 //
 // Port status (replaces C string shim equivalents):
 //   libc_strcmp_pure    — PURE Aria (lexicographic compare)
@@ -20,7 +20,7 @@
 use "_str_parse.aria".*;
 
 // ── Extern: byte-level string access from mem shim ──────────────────
-extern func:aria_libc_mem_string_byte_at = int64(string:s, int64:offset);
+extern func:aria_string_byte_at = int64(string:s, int64:offset);
 
 // ══════════════════════════════════════════════════════════════════════
 // strcmp — lexicographic string comparison
@@ -33,8 +33,8 @@ pub func:libc_strcmp_pure = int64(string:a, string:b) {
     int64:max_scan = 1048576i64;
     while (1 == 1) {
         if (i >= max_scan) { pass(0i64); }
-        int64:ca = aria_libc_mem_string_byte_at(a, i);
-        int64:cb = aria_libc_mem_string_byte_at(b, i);
+        int64:ca = aria_string_byte_at(a, i);
+        int64:cb = aria_string_byte_at(b, i);
 
         // If either hits null terminator
         if (ca == 0i64) {
@@ -63,8 +63,8 @@ pub func:libc_strncmp_pure = int64(string:a, string:b, int64:n) {
     int64:i = 0i64;
     while (1 == 1) {
         if (i >= n) { pass(0i64); }  // matched all n bytes
-        int64:ca = aria_libc_mem_string_byte_at(a, i);
-        int64:cb = aria_libc_mem_string_byte_at(b, i);
+        int64:ca = aria_string_byte_at(a, i);
+        int64:cb = aria_string_byte_at(b, i);
 
         if (ca == 0i64) {
             if (cb == 0i64) { pass(0i64); }
@@ -91,7 +91,7 @@ pub func:libc_strchr_pure = int64(string:s, int64:c) {
     int64:max_scan = 1048576i64;
     while (1 == 1) {
         if (i >= max_scan) { pass(-1i64); }
-        int64:b = aria_libc_mem_string_byte_at(s, i);
+        int64:b = aria_string_byte_at(s, i);
         if (b == c) { pass(i); }
         if (b == 0i64) { pass(-1i64); }  // hit null terminator
         if (b < 0i64) { pass(-1i64); }   // error
@@ -112,7 +112,7 @@ pub func:libc_strrchr_pure = int64(string:s, int64:c) {
     int64:i = 0i64;
     while (1 == 1) {
         if (i >= len) { pass(last); }
-        int64:b = aria_libc_mem_string_byte_at(s, i);
+        int64:b = aria_string_byte_at(s, i);
         if (b == c) { last = i; }
         i = i + 1i64;
     }
@@ -145,8 +145,8 @@ pub func:libc_strstr_pure = int64(string:haystack, string:needle) {
         int64:matched = 1i64;
         while (1 == 1) {
             if (j >= nlen) { break; }
-            int64:hc = aria_libc_mem_string_byte_at(haystack, i + j);
-            int64:nc = aria_libc_mem_string_byte_at(needle, j);
+            int64:hc = aria_string_byte_at(haystack, i + j);
+            int64:nc = aria_string_byte_at(needle, j);
             if (hc != nc) {
                 matched = 0i64;
                 break;
