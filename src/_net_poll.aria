@@ -1,0 +1,105 @@
+// _net_poll.aria — Pure Aria poll() via sys()
+// No C networking shim required. Calls kernel directly.
+//
+// Port status:
+//   libc_net_poll_read, libc_net_poll_write — PURE sys(POLL)
+//
+// struct pollfd layout (8 bytes):
+//   offset 0: int32 fd      (4 bytes)
+//   offset 4: int16 events  (2 bytes)
+//   offset 6: int16 revents (2 bytes)
+//
+// Dependencies:
+//   _constants.aria — POLLIN, POLLOUT, POLLFD_SIZE, PROT_RW, MAP_ANON_PRIV
+//   aria_libc_mem.c — write_byte/read_byte for pollfd struct access
+//
+// Usage:
+//   use "../src/_net_poll.aria".*;
+//   use "../src/_constants.aria".*;
+
+use "_constants.aria".*;
+
+// ── Extern helpers for byte-level struct access ─────────────────────
+extern func:aria_libc_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_libc_mem_read_byte = int64(int64:ptr, int64:offset);
+
+// ── Internal: write pollfd struct fields via bytes ──────────────────
+
+// Write int32 fd as 4 little-endian bytes at ptr+offset
+func:_write_int32_le = int64(int64:ptr, int64:offset, int64:val) {
+    int64:b0 = val - val / 256i64 * 256i64;
+    int64:v1 = val / 256i64;
+    int64:b1 = v1 - v1 / 256i64 * 256i64;
+    int64:v2 = v1 / 256i64;
+    int64:b2 = v2 - v2 / 256i64 * 256i64;
+    int64:v3 = v2 / 256i64;
+    int64:b3 = v3 - v3 / 256i64 * 256i64;
+    drop(aria_libc_mem_write_byte(ptr, offset, b0));
+    drop(aria_libc_mem_write_byte(ptr, offset + 1i64, b1));
+    drop(aria_libc_mem_write_byte(ptr, offset + 2i64, b2));
+    drop(aria_libc_mem_write_byte(ptr, offset + 3i64, b3));
+    pass(0i64);
+};
+
+// Write int16 as 2 little-endian bytes at ptr+offset
+func:_write_int16_le = int64(int64:ptr, int64:offset, int64:val) {
+    int64:b0 = val - val / 256i64 * 256i64;
+    int64:b1 = val / 256i64;
+    drop(aria_libc_mem_write_byte(ptr, offset, b0));
+    drop(aria_libc_mem_write_byte(ptr, offset + 1i64, b1));
+    pass(0i64);
+};
+
+// Read int16 as 2 little-endian bytes from ptr+offset
+func:_read_int16_le = int64(int64:ptr, int64:offset) {
+    int64:b0 = aria_libc_mem_read_byte(ptr, offset);
+    int64:b1 = aria_libc_mem_read_byte(ptr, offset + 1i64);
+    pass(b1 * 256i64 + b0);
+};
+
+// ── Internal: build pollfd, call sys(POLL), read revents ────────────
+
+func:_poll_one = int64(int64:fd, int64:events, int64:timeout_ms) {
+    // Allocate pollfd struct (8 bytes) via mmap
+    Result<int64>:buf_r = sys(MMAP, 0i64, POLLFD_SIZE, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) { pass(-1i64); }
+
+    // Write pollfd: {fd, events, revents=0}
+    drop(_write_int32_le(buf, POLLFD_OFF_FD, fd));
+    drop(_write_int16_le(buf, POLLFD_OFF_EVENTS, events));
+    // revents already 0 from mmap
+
+    // poll(fds, nfds=1, timeout_ms)
+    Result<int64>:r = sys(POLL, buf, 1i64, timeout_ms);
+    int64:ret = r ? -1i64;
+
+    int64:revents = 0i64;
+    if (ret > 0i64) {
+        revents = _read_int16_le(buf, POLLFD_OFF_REVENTS) ?! 0i64;
+    }
+
+    drop(sys(MUNMAP, buf, POLLFD_SIZE));
+
+    // Return revents if poll returned ready fds, 0 on timeout, -1 on error
+    if (ret < 0i64) { pass(-1i64); }
+    pass(revents);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Public API
+// ══════════════════════════════════════════════════════════════════════
+
+// Poll for readability on a single fd.
+// Returns revents mask (> 0 if readable), 0 on timeout, -1 on error.
+pub func:libc_net_poll_read = int64(int64:fd, int64:timeout_ms) {
+    int64:events = _poll_one(fd, POLLIN, timeout_ms) ?! -1i64;
+    pass(events);
+};
+
+// Poll for writability on a single fd.
+// Returns revents mask (> 0 if writable), 0 on timeout, -1 on error.
+pub func:libc_net_poll_write = int64(int64:fd, int64:timeout_ms) {
+    int64:events = _poll_one(fd, POLLOUT, timeout_ms) ?! -1i64;
+    pass(events);
+};

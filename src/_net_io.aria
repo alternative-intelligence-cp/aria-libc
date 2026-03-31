@@ -1,0 +1,127 @@
+// _net_io.aria — Pure Aria socket I/O via sys()
+// No C networking shim required. Calls kernel directly.
+//
+// Port status:
+//   libc_net_send, libc_net_recv — PURE sys() (SEND/RECV → sendto/recvfrom with NULL addr)
+//   libc_net_recv_count — PURE sys() (returns byte count, not string)
+//   libc_net_sendto, libc_net_recvfrom — PURE sys() (UDP with sockaddr_in)
+//
+// Dependencies:
+//   _constants.aria — PROT_RW, MAP_ANON_PRIV, SOCKADDR_IN_SIZE, etc.
+//   _net_addr.aria — _sockaddr_in_build, _sockaddr_in_release
+//   aria_libc_mem.c — write_byte (for null terminator in recv buffer)
+//   strdup (libc) — for buffer→string conversion (same as _io_core.aria)
+//
+// Usage:
+//   use "../src/_net_io.aria".*;
+//   use "../src/_constants.aria".*;
+
+use "_constants.aria".*;
+use "_net_addr.aria".*;
+
+// ── Extern helpers ──────────────────────────────────────────────────
+extern func:strdup = string(int64:ptr);
+extern func:aria_libc_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
+
+// ══════════════════════════════════════════════════════════════════════
+// TCP send / recv (connected sockets)
+// ══════════════════════════════════════════════════════════════════════
+
+// Send string data on a connected socket.
+// Returns number of bytes sent, or -1 on error.
+pub func:libc_net_send = int64(int64:fd, string:data) {
+    int64:len = string_length(data);
+    // sendto(fd, buf, len, flags=0, dest_addr=NULL, addrlen=0)
+    Result<int64>:r = sys(SEND, fd, data, len, 0i64, 0i64, 0i64);
+    int64:sent = r ? -1i64;
+    pass(sent);
+};
+
+// Receive data from a connected socket as a string.
+// Returns the received string (empty string on error or no data).
+pub func:libc_net_recv = string(int64:fd, int64:max_len) {
+    // Allocate buffer via mmap (zero-filled)
+    int64:buf_sz = max_len + 1i64;
+    Result<int64>:buf_r = sys(MMAP, 0i64, buf_sz, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) { pass(""); }
+
+    // recvfrom(fd, buf, len, flags=0, src_addr=NULL, addrlen=NULL)
+    Result<int64>:r = sys(RECV, fd, buf, max_len, 0i64, 0i64, 0i64);
+    int64:n = r ? -1i64;
+
+    if (n < 1i64) {
+        drop(sys(MUNMAP, buf, buf_sz));
+        pass("");
+    }
+
+    // Null-terminate at position n
+    drop(aria_libc_mem_write_byte(buf, n, 0i64));
+
+    // Convert buffer to Aria string (same pattern as _io_core.aria)
+    string:result = strdup(buf);
+
+    drop(sys(MUNMAP, buf, buf_sz));
+    pass(result);
+};
+
+// Receive data and return byte count (not string).
+// Returns bytes received (>= 0), or -1 on error.
+pub func:libc_net_recv_count = int64(int64:fd, int64:max_len) {
+    // Allocate throwaway buffer
+    Result<int64>:buf_r = sys(MMAP, 0i64, max_len, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) { pass(-1i64); }
+
+    Result<int64>:r = sys(RECV, fd, buf, max_len, 0i64, 0i64, 0i64);
+    int64:n = r ? -1i64;
+
+    drop(sys(MUNMAP, buf, max_len));
+    pass(n);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// UDP sendto / recvfrom
+// ══════════════════════════════════════════════════════════════════════
+
+// Send data to a specific IPv4 address and port (UDP).
+// Returns bytes sent, or -1 on error.
+pub func:libc_net_sendto = int64(int64:fd, string:data, string:addr, int64:port) {
+    int64:ip = libc_inet_aton(addr) ?! 0i64;
+    int64:sa = _sockaddr_in_build(ip, port) ?! 0i64;
+    if (sa == 0i64) { pass(-1i64); }
+
+    int64:len = string_length(data);
+    // sendto(fd, buf, len, flags=0, dest_addr, addrlen=16)
+    Result<int64>:r = sys(SENDTO, fd, data, len, 0i64, sa, SOCKADDR_IN_SIZE);
+    int64:sent = r ? -1i64;
+
+    drop(_sockaddr_in_release(sa));
+    pass(sent);
+};
+
+// Receive data from any sender (UDP). Returns the data as string.
+// (Source address is discarded in this version.)
+pub func:libc_net_recvfrom = string(int64:fd, int64:max_len) {
+    // Allocate receive buffer
+    int64:buf_sz = max_len + 1i64;
+    Result<int64>:buf_r = sys(MMAP, 0i64, buf_sz, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) { pass(""); }
+
+    // recvfrom(fd, buf, len, flags=0, src_addr=NULL, addrlen=NULL)
+    Result<int64>:r = sys(RECVFROM, fd, buf, max_len, 0i64, 0i64, 0i64);
+    int64:n = r ? -1i64;
+
+    if (n < 1i64) {
+        drop(sys(MUNMAP, buf, buf_sz));
+        pass("");
+    }
+
+    // Null-terminate
+    drop(aria_libc_mem_write_byte(buf, n, 0i64));
+
+    string:result = strdup(buf);
+    drop(sys(MUNMAP, buf, buf_sz));
+    pass(result);
+};

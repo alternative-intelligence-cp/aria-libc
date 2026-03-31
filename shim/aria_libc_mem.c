@@ -249,3 +249,10 @@ int64_t aria_libc_mem_offset(int64_t ptr, int64_t offset) {
 int64_t aria_libc_mem_ptr_size(void) {
     return (int64_t)sizeof(void *);
 }
+
+/* ── String byte access (for Aria code that needs character-level parsing) ── */
+
+int64_t aria_libc_mem_string_byte_at(const char *s, int64_t offset) {
+    if (!s || offset < 0) return -1;
+    return (int64_t)(unsigned char)s[offset];
+}

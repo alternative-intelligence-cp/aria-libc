@@ -95,3 +95,55 @@ int64:MAP_ANON_PRIV = 34i64;    // MAP_PRIVATE | MAP_ANONYMOUS (convenience)
 // ── mremap flags ────────────────────────────────────────────────────
 int64:MREMAP_MAYMOVE = 1i64;
 int64:MREMAP_FIXED   = 2i64;
+
+// ── Socket address families ─────────────────────────────────────────
+int64:AF_UNSPEC = 0i64;
+int64:AF_UNIX   = 1i64;
+int64:AF_INET   = 2i64;
+int64:AF_INET6  = 10i64;
+
+// ── Socket types ────────────────────────────────────────────────────
+int64:SOCK_STREAM = 1i64;
+int64:SOCK_DGRAM  = 2i64;
+int64:SOCK_RAW    = 3i64;
+
+// ── IP protocols ────────────────────────────────────────────────────
+int64:IPPROTO_TCP = 6i64;
+int64:IPPROTO_UDP = 17i64;
+
+// ── Socket option levels ────────────────────────────────────────────
+int64:SOL_SOCKET = 1i64;
+
+// ── Socket options (SOL_SOCKET level) ───────────────────────────────
+int64:SO_REUSEADDR = 2i64;
+int64:SO_ERROR     = 4i64;
+int64:SO_SNDBUF    = 7i64;
+int64:SO_RCVBUF    = 8i64;
+int64:SO_KEEPALIVE = 9i64;
+int64:SO_REUSEPORT = 15i64;
+
+// ── TCP options (IPPROTO_TCP level) ─────────────────────────────────
+int64:TCP_NODELAY = 1i64;
+
+// ── Shutdown modes ──────────────────────────────────────────────────
+int64:SHUT_RD   = 0i64;
+int64:SHUT_WR   = 1i64;
+int64:SHUT_RDWR = 2i64;
+
+// ── poll() event flags ──────────────────────────────────────────────
+int64:POLLIN  = 1i64;
+int64:POLLOUT = 4i64;
+int64:POLLERR = 8i64;
+int64:POLLHUP = 16i64;
+
+// ── sockaddr_in struct layout (16 bytes) ────────────────────────────
+int64:SOCKADDR_IN_SIZE = 16i64;
+int64:SOCKADDR_OFF_FAMILY = 0i64;   // uint16 sin_family (2 bytes)
+int64:SOCKADDR_OFF_PORT   = 2i64;   // uint16 sin_port   (2 bytes, network order)
+int64:SOCKADDR_OFF_ADDR   = 4i64;   // uint32 sin_addr   (4 bytes, network order)
+
+// ── pollfd struct layout (8 bytes) ──────────────────────────────────
+int64:POLLFD_SIZE       = 8i64;
+int64:POLLFD_OFF_FD     = 0i64;   // int32 fd      (4 bytes)
+int64:POLLFD_OFF_EVENTS = 4i64;   // int16 events  (2 bytes)
+int64:POLLFD_OFF_REVENTS = 6i64;  // int16 revents (2 bytes)

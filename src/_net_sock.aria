@@ -1,0 +1,189 @@
+// _net_sock.aria — Pure Aria socket operations via sys()
+// No C networking shim required. Calls kernel directly.
+//
+// Port status:
+//   libc_net_socket, libc_net_close, libc_net_shutdown — PURE sys()
+//   libc_net_bind_ipv4, libc_net_listen, libc_net_accept — PURE sys()
+//   libc_net_connect_ipv4 — PURE sys()
+//   libc_net_setopt, libc_net_getopt — PURE sys() (uses mem helpers for value buffer)
+//   libc_net_tcp_listen — convenience, PURE sys()
+//
+// Dependencies:
+//   _constants.aria — AF_INET, SOCK_STREAM, SOL_SOCKET, etc.
+//   _net_addr.aria — _sockaddr_in_build, _sockaddr_in_release
+//   aria_libc_mem.c — write_int64/read_int32 for sockopt value buffer
+//
+// Usage:
+//   use "../src/_net_sock.aria".*;
+//   use "../src/_constants.aria".*;
+
+use "_constants.aria".*;
+use "_net_addr.aria".*;
+
+// ── Extern helpers for sockopt value buffer ─────────────────────────
+extern func:aria_libc_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_libc_mem_read_int32 = int64(int64:ptr, int64:offset);
+
+// ── Internal constants ──────────────────────────────────────────────
+int64:_OPTVAL_SIZE = 16i64;  // mmap buffer for setsockopt/getsockopt
+
+// ══════════════════════════════════════════════════════════════════════
+// Core socket operations
+// ══════════════════════════════════════════════════════════════════════
+
+// Create a socket. Returns fd >= 0 on success, -1 on error.
+pub func:libc_net_socket = int64(int64:domain, int64:typ, int64:protocol) {
+    Result<int64>:r = sys(SOCKET, domain, typ, protocol);
+    int64:fd = r ? -1i64;
+    pass(fd);
+};
+
+// Close a socket fd. Returns 0 on success, -1 on error.
+pub func:libc_net_close = int64(int64:fd) {
+    Result<int64>:r = sys(CLOSE, fd);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// Shutdown a socket. how: SHUT_RD=0, SHUT_WR=1, SHUT_RDWR=2.
+// Returns 0 on success, -1 on error.
+pub func:libc_net_shutdown = int64(int64:fd, int64:how) {
+    Result<int64>:r = sys(SHUTDOWN, fd, how);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Bind / Listen / Accept
+// ══════════════════════════════════════════════════════════════════════
+
+// Bind socket to IPv4 address and port.
+// addr: dotted-quad string, e.g. "0.0.0.0" or "127.0.0.1"
+// port: host-order port (0 for OS-assigned ephemeral)
+// Returns 0 on success, -1 on error.
+pub func:libc_net_bind_ipv4 = int64(int64:fd, string:addr, int64:port) {
+    int64:ip = libc_inet_aton(addr) ?! 0i64;
+    int64:sa = _sockaddr_in_build(ip, port) ?! 0i64;
+    if (sa == 0i64) { pass(-1i64); }
+
+    Result<int64>:r = sys(BIND, fd, sa, SOCKADDR_IN_SIZE);
+    int64:ret = r ? -1i64;
+
+    drop(_sockaddr_in_release(sa));
+    pass(ret);
+};
+
+// Start listening on a bound socket. backlog = connection queue depth.
+// Returns 0 on success, -1 on error.
+pub func:libc_net_listen = int64(int64:fd, int64:backlog) {
+    Result<int64>:r = sys(LISTEN, fd, backlog);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// Accept a connection. Returns new client fd >= 0, or -1 on error.
+// Uses accept4 with flags=0 (no SOCK_CLOEXEC/SOCK_NONBLOCK).
+pub func:libc_net_accept = int64(int64:fd) {
+    Result<int64>:r = sys(ACCEPT4, fd, 0i64, 0i64, 0i64);
+    int64:cfd = r ? -1i64;
+    pass(cfd);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Connect
+// ══════════════════════════════════════════════════════════════════════
+
+// Connect to an IPv4 address and port.
+// Returns 0 on success, -1 on error.
+pub func:libc_net_connect_ipv4 = int64(int64:fd, string:addr, int64:port) {
+    int64:ip = libc_inet_aton(addr) ?! 0i64;
+    int64:sa = _sockaddr_in_build(ip, port) ?! 0i64;
+    if (sa == 0i64) { pass(-1i64); }
+
+    Result<int64>:r = sys(CONNECT, fd, sa, SOCKADDR_IN_SIZE);
+    int64:ret = r ? -1i64;
+
+    drop(_sockaddr_in_release(sa));
+    pass(ret);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Socket options
+// ══════════════════════════════════════════════════════════════════════
+
+// Set a socket option (integer value).
+// level: SOL_SOCKET, IPPROTO_TCP, etc.
+// optname: SO_REUSEADDR, TCP_NODELAY, etc.
+// Returns 0 on success, -1 on error.
+pub func:libc_net_setopt = int64(int64:fd, int64:level, int64:optname, int64:val) {
+    // Allocate buffer for int value (4 bytes used, 16 mmap'd)
+    Result<int64>:buf_r = sys(MMAP, 0i64, _OPTVAL_SIZE, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) { pass(-1i64); }
+
+    // Write value as int64 — kernel reads first 4 bytes (little-endian correct for int32)
+    drop(aria_libc_mem_write_int64(buf, 0i64, val));
+
+    // setsockopt(fd, level, optname, optval, optlen=4)
+    Result<int64>:r = sys(SETSOCKOPT, fd, level, optname, buf, 4i64);
+    int64:ret = r ? -1i64;
+
+    drop(sys(MUNMAP, buf, _OPTVAL_SIZE));
+    pass(ret);
+};
+
+// Get a socket option (integer value).
+// Returns the option value, or -1 on error.
+pub func:libc_net_getopt = int64(int64:fd, int64:level, int64:optname) {
+    // Allocate buffer: [0..3] = optval, [4..7] = optlen (socklen_t)
+    Result<int64>:buf_r = sys(MMAP, 0i64, _OPTVAL_SIZE, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) { pass(-1i64); }
+
+    // Set optlen = 4 (sizeof(int))
+    int64:optlen_ptr = buf + 8i64;
+    drop(aria_libc_mem_write_int64(optlen_ptr, 0i64, 4i64));
+
+    // getsockopt(fd, level, optname, optval, &optlen)
+    Result<int64>:r = sys(GETSOCKOPT, fd, level, optname, buf, optlen_ptr);
+    int64:ret = r ? -1i64;
+
+    int64:val = 0i64 - 1i64;
+    if (ret == 0i64) {
+        val = aria_libc_mem_read_int32(buf, 0i64);
+    }
+
+    drop(sys(MUNMAP, buf, _OPTVAL_SIZE));
+    pass(val);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Convenience: TCP listen (socket + reuseaddr + bind + listen)
+// ══════════════════════════════════════════════════════════════════════
+
+// Create a TCP server socket: socket → SO_REUSEADDR → bind → listen.
+// Returns the listening fd, or -1 on error.
+pub func:libc_net_tcp_listen = int64(string:addr, int64:port, int64:backlog) {
+    int64:fd = libc_net_socket(AF_INET, SOCK_STREAM, 0i64) ?! -1i64;
+    if (fd < 0i64) { pass(-1i64); }
+
+    int64:opt_rc = libc_net_setopt(fd, SOL_SOCKET, SO_REUSEADDR, 1i64) ?! -1i64;
+    if (opt_rc < 0i64) {
+        drop(libc_net_close(fd));
+        pass(-1i64);
+    }
+
+    int64:bind_rc = libc_net_bind_ipv4(fd, addr, port) ?! -1i64;
+    if (bind_rc < 0i64) {
+        drop(libc_net_close(fd));
+        pass(-1i64);
+    }
+
+    int64:listen_rc = libc_net_listen(fd, backlog) ?! -1i64;
+    if (listen_rc < 0i64) {
+        drop(libc_net_close(fd));
+        pass(-1i64);
+    }
+
+    pass(fd);
+};

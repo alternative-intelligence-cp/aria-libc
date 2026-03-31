@@ -1,0 +1,421 @@
+// test_net_pure.aria — Tests for pure sys() networking modules
+//
+// Tests: _net_addr.aria, _net_sock.aria, _net_io.aria, _net_poll.aria
+//
+// Compile:
+//   ./scripts/build_static.sh tests/test_net_pure.aria -o build/static-tests/net_pure -laria_libc_mem
+//
+// Uses the Result<T> auto-unwrap-in-argument-position pattern for pub func calls.
+
+use "../src/_constants.aria".*;
+use "../src/_net_addr.aria".*;
+use "../src/_net_sock.aria".*;
+use "../src/_net_io.aria".*;
+use "../src/_net_poll.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq_int = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_gt_int = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual > threshold) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected > " + string_from_int(threshold)));
+        drop(print("    actual:    " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_gte_int = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual >= threshold) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected >= " + string_from_int(threshold)));
+        drop(print("    actual:     " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: Byte-order conversion (htons/ntohs/htonl/ntohl)
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_byte_order = NIL() {
+    drop(println("=== Byte Order ==="));
+
+    // htons/ntohs roundtrip
+    drop(assert_eq_int(libc_ntohs(libc_htons(80i64)), 80i64, "htons/ntohs roundtrip 80"));
+    drop(assert_eq_int(libc_ntohs(libc_htons(443i64)), 443i64, "htons/ntohs roundtrip 443"));
+    drop(assert_eq_int(libc_ntohs(libc_htons(8080i64)), 8080i64, "htons/ntohs roundtrip 8080"));
+    drop(assert_eq_int(libc_ntohs(libc_htons(0i64)), 0i64, "htons/ntohs roundtrip 0"));
+    drop(assert_eq_int(libc_ntohs(libc_htons(65535i64)), 65535i64, "htons/ntohs roundtrip 65535"));
+
+    // htons known value: 80 = 0x0050, htons → 0x5000 = 20480
+    drop(assert_eq_int(libc_htons(80i64), 20480i64, "htons(80) = 20480"));
+    // htons(1) = 256
+    drop(assert_eq_int(libc_htons(1i64), 256i64, "htons(1) = 256"));
+
+    // htonl/ntohl roundtrip
+    drop(assert_eq_int(libc_ntohl(libc_htonl(12345i64)), 12345i64, "htonl/ntohl roundtrip 12345"));
+    drop(assert_eq_int(libc_ntohl(libc_htonl(0i64)), 0i64, "htonl/ntohl roundtrip 0"));
+    drop(assert_eq_int(libc_ntohl(libc_htonl(16777216i64)), 16777216i64, "htonl/ntohl roundtrip 16777216"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: inet_aton / inet_ntoa
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_inet = NIL() {
+    drop(println("=== inet_aton / inet_ntoa ==="));
+
+    // 127.0.0.1 = 0x7F000001 = 2130706433
+    drop(assert_eq_int(libc_inet_aton("127.0.0.1"), 2130706433i64, "inet_aton(127.0.0.1) = 2130706433"));
+
+    // 0.0.0.0 = 0
+    drop(assert_eq_int(libc_inet_aton("0.0.0.0"), 0i64, "inet_aton(0.0.0.0) = 0"));
+
+    // 255.255.255.255 = 4294967295
+    drop(assert_eq_int(libc_inet_aton("255.255.255.255"), 4294967295i64, "inet_aton(255.255.255.255) = 4294967295"));
+
+    // 192.168.1.1 = 0xC0A80101 = 3232235777
+    drop(assert_eq_int(libc_inet_aton("192.168.1.1"), 3232235777i64, "inet_aton(192.168.1.1) = 3232235777"));
+
+    // inet_ntoa roundtrip
+    drop(assert_str_eq(libc_inet_ntoa(2130706433i64), "127.0.0.1", "inet_ntoa(2130706433) = 127.0.0.1"));
+    drop(assert_str_eq(libc_inet_ntoa(0i64), "0.0.0.0", "inet_ntoa(0) = 0.0.0.0"));
+    drop(assert_str_eq(libc_inet_ntoa(3232235777i64), "192.168.1.1", "inet_ntoa(3232235777) = 192.168.1.1"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: Constants are correct values
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_constants = NIL() {
+    drop(println("=== Net Constants ==="));
+
+    drop(assert_eq_int(AF_INET, 2i64, "AF_INET = 2"));
+    drop(assert_eq_int(AF_INET6, 10i64, "AF_INET6 = 10"));
+    drop(assert_eq_int(AF_UNIX, 1i64, "AF_UNIX = 1"));
+    drop(assert_eq_int(SOCK_STREAM, 1i64, "SOCK_STREAM = 1"));
+    drop(assert_eq_int(SOCK_DGRAM, 2i64, "SOCK_DGRAM = 2"));
+    drop(assert_eq_int(IPPROTO_TCP, 6i64, "IPPROTO_TCP = 6"));
+    drop(assert_eq_int(IPPROTO_UDP, 17i64, "IPPROTO_UDP = 17"));
+    drop(assert_eq_int(SOL_SOCKET, 1i64, "SOL_SOCKET = 1"));
+    drop(assert_eq_int(SO_REUSEADDR, 2i64, "SO_REUSEADDR = 2"));
+    drop(assert_eq_int(TCP_NODELAY, 1i64, "TCP_NODELAY = 1"));
+    drop(assert_eq_int(SHUT_RD, 0i64, "SHUT_RD = 0"));
+    drop(assert_eq_int(SHUT_WR, 1i64, "SHUT_WR = 1"));
+    drop(assert_eq_int(SHUT_RDWR, 2i64, "SHUT_RDWR = 2"));
+    drop(assert_eq_int(POLLIN, 1i64, "POLLIN = 1"));
+    drop(assert_eq_int(POLLOUT, 4i64, "POLLOUT = 4"));
+    drop(assert_eq_int(POLLERR, 8i64, "POLLERR = 8"));
+    drop(assert_eq_int(POLLHUP, 16i64, "POLLHUP = 16"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: Socket create / close
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_socket_create_close = NIL() {
+    drop(println("=== Socket Create / Close ==="));
+
+    // Create TCP socket
+    drop(assert_gte_int(libc_net_socket(AF_INET, SOCK_STREAM, 0i64), 0i64, "TCP socket fd >= 0"));
+
+    // Create UDP socket
+    int64:ufd = libc_net_socket(AF_INET, SOCK_DGRAM, 0i64) ?! -1i64;
+    drop(assert_gte_int(ufd, 0i64, "UDP socket fd >= 0"));
+
+    // Close valid fd
+    drop(assert_eq_int(libc_net_close(ufd), 0i64, "close(udp_fd) = 0"));
+
+    // Close invalid fd
+    drop(assert_eq_int(libc_net_close(9999i64), 0i64 - 1i64, "close(9999) = -1"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: Socket options
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_socket_options = NIL() {
+    drop(println("=== Socket Options ==="));
+
+    int64:fd = libc_net_socket(AF_INET, SOCK_STREAM, 0i64) ?! -1i64;
+
+    // Set SO_REUSEADDR = 1
+    drop(assert_eq_int(libc_net_setopt(fd, SOL_SOCKET, SO_REUSEADDR, 1i64), 0i64, "setopt(SO_REUSEADDR, 1) = 0"));
+
+    // Get SO_REUSEADDR
+    drop(assert_eq_int(libc_net_getopt(fd, SOL_SOCKET, SO_REUSEADDR), 1i64, "getopt(SO_REUSEADDR) = 1"));
+
+    // Set TCP_NODELAY = 1
+    drop(assert_eq_int(libc_net_setopt(fd, IPPROTO_TCP, TCP_NODELAY, 1i64), 0i64, "setopt(TCP_NODELAY, 1) = 0"));
+
+    // Get TCP_NODELAY
+    drop(assert_eq_int(libc_net_getopt(fd, IPPROTO_TCP, TCP_NODELAY), 1i64, "getopt(TCP_NODELAY) = 1"));
+
+    drop(libc_net_close(fd));
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: Bind / Listen (ephemeral port)
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_bind_listen = NIL() {
+    drop(println("=== Bind / Listen ==="));
+
+    int64:fd = libc_net_socket(AF_INET, SOCK_STREAM, 0i64) ?! -1i64;
+    drop(assert_gte_int(fd, 0i64, "server socket created"));
+
+    // Set SO_REUSEADDR
+    drop(libc_net_setopt(fd, SOL_SOCKET, SO_REUSEADDR, 1i64));
+
+    // Bind to loopback, port 0 (OS picks)
+    drop(assert_eq_int(libc_net_bind_ipv4(fd, "127.0.0.1", 0i64), 0i64, "bind(127.0.0.1:0) = 0"));
+
+    // Listen
+    drop(assert_eq_int(libc_net_listen(fd, 5i64), 0i64, "listen(5) = 0"));
+
+    drop(libc_net_close(fd));
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: TCP loopback (connect, accept, send, recv)
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_tcp_loopback = NIL() {
+    drop(println("=== TCP Loopback ==="));
+
+    // Create server with convenience function
+    int64:sfd = libc_net_tcp_listen("127.0.0.1", 0i64, 5i64) ?! -1i64;
+    drop(assert_gte_int(sfd, 0i64, "tcp_listen returns valid fd"));
+
+    // We need the port, but getsockname requires struct parsing.
+    // Instead, try binding to a known port.
+    drop(libc_net_close(sfd));
+
+    // Use a fixed ephemeral port range
+    int64:port = 39517i64;
+
+    int64:sfd2 = libc_net_tcp_listen("127.0.0.1", port, 5i64) ?! -1i64;
+    drop(assert_gte_int(sfd2, 0i64, "tcp_listen on port 39517"));
+
+    // Create client and connect
+    int64:cfd = libc_net_socket(AF_INET, SOCK_STREAM, 0i64) ?! -1i64;
+    drop(assert_eq_int(libc_net_connect_ipv4(cfd, "127.0.0.1", port), 0i64, "connect returns 0"));
+
+    // Accept on server
+    int64:afd = libc_net_accept(sfd2) ?! -1i64;
+    drop(assert_gte_int(afd, 0i64, "accept returns valid fd"));
+
+    // Send from client
+    drop(assert_eq_int(libc_net_send(cfd, "hello from aria"), 15i64, "client sends 15 bytes"));
+
+    // Recv on server
+    drop(assert_str_eq(libc_net_recv(afd, 1024i64), "hello from aria", "server receives correct data"));
+
+    // Send from server
+    drop(assert_eq_int(libc_net_send(afd, "pong"), 4i64, "server sends 4 bytes"));
+
+    // Recv on client
+    drop(assert_str_eq(libc_net_recv(cfd, 1024i64), "pong", "client receives pong"));
+
+    // Shutdown and close
+    drop(libc_net_shutdown(cfd, SHUT_RDWR));
+    drop(libc_net_close(cfd));
+    drop(libc_net_close(afd));
+    drop(libc_net_close(sfd2));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: UDP loopback (sendto, recvfrom)
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_udp_loopback = NIL() {
+    drop(println("=== UDP Loopback ==="));
+
+    int64:port = 39518i64;
+
+    // Create receiver and bind
+    int64:rfd = libc_net_socket(AF_INET, SOCK_DGRAM, 0i64) ?! -1i64;
+    drop(assert_gte_int(rfd, 0i64, "udp recv socket created"));
+
+    drop(libc_net_setopt(rfd, SOL_SOCKET, SO_REUSEADDR, 1i64));
+    drop(assert_eq_int(libc_net_bind_ipv4(rfd, "127.0.0.1", port), 0i64, "udp bind = 0"));
+
+    // Create sender
+    int64:sfd = libc_net_socket(AF_INET, SOCK_DGRAM, 0i64) ?! -1i64;
+    drop(assert_gte_int(sfd, 0i64, "udp send socket created"));
+
+    // Send
+    drop(assert_eq_int(libc_net_sendto(sfd, "udp hello", "127.0.0.1", port), 9i64, "sendto = 9 bytes"));
+
+    // Receive
+    drop(assert_str_eq(libc_net_recvfrom(rfd, 1024i64), "udp hello", "recvfrom matches sent"));
+
+    drop(libc_net_close(sfd));
+    drop(libc_net_close(rfd));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: Poll
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_poll = NIL() {
+    drop(println("=== Poll ==="));
+
+    // Create a TCP socket (not connected), poll for read — should timeout
+    int64:fd = libc_net_socket(AF_INET, SOCK_STREAM, 0i64) ?! -1i64;
+
+    // poll_read with 10ms timeout — should return 0 (timeout) or POLLHUP
+    drop(assert_gte_int(libc_net_poll_read(fd, 10i64), 0i64, "poll_read >= 0 (no error)"));
+
+    // poll_write with 10ms
+    drop(assert_gte_int(libc_net_poll_write(fd, 10i64), 0i64, "poll_write >= 0 (no error)"));
+
+    drop(libc_net_close(fd));
+
+    // Test poll on a connected pair — data should be readable after send
+    int64:port = 39519i64;
+    int64:sfd = libc_net_tcp_listen("127.0.0.1", port, 5i64) ?! -1i64;
+    int64:cfd = libc_net_socket(AF_INET, SOCK_STREAM, 0i64) ?! -1i64;
+    drop(libc_net_connect_ipv4(cfd, "127.0.0.1", port));
+    int64:afd = libc_net_accept(sfd) ?! -1i64;
+
+    // Send from client
+    drop(libc_net_send(cfd, "poll test"));
+
+    // Poll for read on server — should show readable
+    drop(assert_gt_int(libc_net_poll_read(afd, 100i64), 0i64, "poll_read after send > 0"));
+
+    drop(libc_net_close(cfd));
+    drop(libc_net_close(afd));
+    drop(libc_net_close(sfd));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: Shutdown
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_shutdown = NIL() {
+    drop(println("=== Shutdown ==="));
+
+    int64:port = 39520i64;
+    int64:sfd = libc_net_tcp_listen("127.0.0.1", port, 5i64) ?! -1i64;
+    int64:cfd = libc_net_socket(AF_INET, SOCK_STREAM, 0i64) ?! -1i64;
+    drop(libc_net_connect_ipv4(cfd, "127.0.0.1", port));
+    int64:afd = libc_net_accept(sfd) ?! -1i64;
+
+    // Shutdown write on client
+    drop(assert_eq_int(libc_net_shutdown(cfd, SHUT_WR), 0i64, "shutdown(SHUT_WR) = 0"));
+
+    // Server recv should get 0 bytes (EOF) → empty string
+    drop(assert_str_eq(libc_net_recv(afd, 1024i64), "", "recv after shutdown = empty"));
+
+    drop(libc_net_close(cfd));
+    drop(libc_net_close(afd));
+    drop(libc_net_close(sfd));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: TCP listen convenience
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_tcp_listen_convenience = NIL() {
+    drop(println("=== TCP Listen Convenience ==="));
+
+    int64:fd = libc_net_tcp_listen("127.0.0.1", 0i64, 10i64) ?! -1i64;
+    drop(assert_gte_int(fd, 0i64, "tcp_listen returns valid fd"));
+
+    // Verify it's listening by trying to connect (should succeed)
+    // But we don't know the port without getsockname, so just check fd is valid
+    drop(assert_gte_int(fd, 3i64, "fd >= 3 (after stdin/stdout/stderr)"));
+
+    drop(libc_net_close(fd));
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Main
+// ══════════════════════════════════════════════════════════════════════
+
+func:failsafe = int32(tbb32:err) {
+    drop(println("FAILSAFE triggered"));
+    exit(1i32);
+};
+
+func:main = int32() {
+    drop(println("aria-libc Pure Networking Tests (v0.2.5)"));
+    drop(println("========================================"));
+
+    drop(test_byte_order());
+    drop(test_inet());
+    drop(test_constants());
+    drop(test_socket_create_close());
+    drop(test_socket_options());
+    drop(test_bind_listen());
+    drop(test_tcp_loopback());
+    drop(test_udp_loopback());
+    drop(test_poll());
+    drop(test_shutdown());
+    drop(test_tcp_listen_convenience());
+
+    drop(println("========================================"));
+    drop(print("PASS: " + string_from_int(pass_count)));
+    drop(print("FAIL: " + string_from_int(fail_count)));
+
+    if (fail_count > 0i64) {
+        exit(1i32);
+    }
+    exit(0i32);
+};

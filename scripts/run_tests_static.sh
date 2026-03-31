@@ -55,6 +55,8 @@ declare -a ALL_TESTS=(
     # v0.2.4: Pure Aria sys() time + clock
     "time_pure:tests/test_time_pure.aria:-laria_libc_mem"
     "time_fmt:tests/test_time_fmt.aria:"
+    # v0.2.5: Pure Aria sys() networking
+    "net_pure:tests/test_net_pure.aria:-laria_libc_mem"
 )
 
 # ── Filter tests if args provided ───────────────────────────────────

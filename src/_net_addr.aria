@@ -1,0 +1,164 @@
+// _net_addr.aria — Pure Aria network address & byte-order utilities
+// No C networking shim required. Struct building via mem helpers.
+//
+// Port status:
+//   htons, ntohs, htonl, ntohl — PURE Aria (bit arithmetic)
+//   inet_aton, inet_ntoa — PURE Aria (string parsing/building)
+//   _sockaddr_in_build, _sockaddr_in_release — PURE Aria via mmap + mem helpers
+//
+// Dependencies:
+//   _constants.aria — AF_INET, SOCKADDR_IN_SIZE, PROT_RW, MAP_ANON_PRIV, etc.
+//   aria_libc_mem.c — write_byte/read_byte for struct field access (until native ptr ops)
+//
+// Usage:
+//   use "../src/_net_addr.aria".*;
+//   use "../src/_constants.aria".*;
+
+use "_constants.aria".*;
+
+// ── Extern helpers for byte-level struct access ─────────────────────
+extern func:aria_libc_mem_write_byte = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_libc_mem_read_byte = int64(int64:ptr, int64:offset);
+extern func:aria_libc_mem_string_byte_at = int64(string:s, int64:offset);
+
+// ══════════════════════════════════════════════════════════════════════
+// Byte-order conversion (x86_64 is little-endian, network is big-endian)
+// ══════════════════════════════════════════════════════════════════════
+
+// 16-bit host-to-network byte swap: 0xAABB → 0xBBAA
+pub func:libc_htons = int64(int64:x) {
+    int64:lo = x / 256i64;
+    int64:hi = x - lo * 256i64;
+    pass(hi * 256i64 + lo);
+};
+
+// 16-bit network-to-host (symmetric with htons)
+pub func:libc_ntohs = int64(int64:x) {
+    int64:lo = x / 256i64;
+    int64:hi = x - lo * 256i64;
+    pass(hi * 256i64 + lo);
+};
+
+// 32-bit host-to-network byte swap: 0xAABBCCDD → 0xDDCCBBAA
+pub func:libc_htonl = int64(int64:x) {
+    int64:b0 = x - x / 256i64 * 256i64;
+    int64:x1 = x / 256i64;
+    int64:b1 = x1 - x1 / 256i64 * 256i64;
+    int64:x2 = x1 / 256i64;
+    int64:b2 = x2 - x2 / 256i64 * 256i64;
+    int64:x3 = x2 / 256i64;
+    int64:b3 = x3 - x3 / 256i64 * 256i64;
+    pass(b0 * 16777216i64 + b1 * 65536i64 + b2 * 256i64 + b3);
+};
+
+// 32-bit network-to-host (symmetric with htonl)
+pub func:libc_ntohl = int64(int64:x) {
+    int64:b0 = x - x / 256i64 * 256i64;
+    int64:x1 = x / 256i64;
+    int64:b1 = x1 - x1 / 256i64 * 256i64;
+    int64:x2 = x1 / 256i64;
+    int64:b2 = x2 - x2 / 256i64 * 256i64;
+    int64:x3 = x2 / 256i64;
+    int64:b3 = x3 - x3 / 256i64 * 256i64;
+    pass(b0 * 16777216i64 + b1 * 65536i64 + b2 * 256i64 + b3);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// inet_aton / inet_ntoa — dotted quad ↔ uint32 (network byte order)
+// ══════════════════════════════════════════════════════════════════════
+
+// Parse "A.B.C.D" → uint32 in network byte order.
+// Returns 0 on invalid input (also 0 for "0.0.0.0" which is fine for INADDR_ANY).
+pub func:libc_inet_aton = int64(string:addr) {
+    int64:len = string_length(addr);
+    int64:octet = 0i64;
+    int64:octet_count = 0i64;
+    int64:result = 0i64;
+
+    loop(0, len, 1) {
+        int64:byte = aria_libc_mem_string_byte_at(addr, $);
+        if (byte == 46i64) {
+            result = result * 256i64 + octet;
+            octet = 0i64;
+            octet_count = octet_count + 1i64;
+        } else {
+            int64:digit = byte - 48i64;
+            octet = octet * 10i64 + digit;
+        }
+    }
+
+    if (octet_count == 3i64) {
+        result = result * 256i64 + octet;
+        pass(result);
+    }
+
+    pass(0i64);
+};
+
+// Convert uint32 (network byte order) → "A.B.C.D".
+pub func:libc_inet_ntoa = string(int64:ip) {
+    int64:b0 = ip / 16777216i64;
+    int64:r0 = ip - b0 * 16777216i64;
+    int64:b1 = r0 / 65536i64;
+    int64:r1 = r0 - b1 * 65536i64;
+    int64:b2 = r1 / 256i64;
+    int64:b3 = r1 - b2 * 256i64;
+    string:s = string_from_int(b0);
+    s = s + ".";
+    s = s + string_from_int(b1);
+    s = s + ".";
+    s = s + string_from_int(b2);
+    s = s + ".";
+    s = s + string_from_int(b3);
+    pass(s);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// sockaddr_in struct building via mmap + byte writes
+// ══════════════════════════════════════════════════════════════════════
+
+// Build a sockaddr_in {AF_INET, port, ip_addr, zero_pad} in mmap'd memory.
+// ip_addr is a uint32 in network byte order (from libc_inet_aton).
+// port is a host-order port number (0–65535).
+// Returns pointer to 16-byte struct, or 0 on failure.
+// Caller MUST call _sockaddr_in_release(ptr) when done.
+pub func:_sockaddr_in_build = int64(int64:ip_addr, int64:port) {
+    // Allocate 16 bytes via mmap (zero-filled)
+    Result<int64>:buf_r = sys(MMAP, 0i64, SOCKADDR_IN_SIZE, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) { pass(0i64); }
+
+    // sin_family = AF_INET (2) as uint16 little-endian
+    drop(aria_libc_mem_write_byte(buf, 0i64, AF_INET));
+    drop(aria_libc_mem_write_byte(buf, 1i64, 0i64));
+
+    // sin_port as uint16 in network byte order (big-endian)
+    int64:port_hi = port / 256i64;
+    int64:port_lo = port - port_hi * 256i64;
+    drop(aria_libc_mem_write_byte(buf, 2i64, port_hi));
+    drop(aria_libc_mem_write_byte(buf, 3i64, port_lo));
+
+    // sin_addr: write 4 bytes in network byte order
+    int64:a0 = ip_addr / 16777216i64;
+    int64:r0 = ip_addr - a0 * 16777216i64;
+    int64:a1 = r0 / 65536i64;
+    int64:r1 = r0 - a1 * 65536i64;
+    int64:a2 = r1 / 256i64;
+    int64:a3 = r1 - a2 * 256i64;
+    drop(aria_libc_mem_write_byte(buf, 4i64, a0));
+    drop(aria_libc_mem_write_byte(buf, 5i64, a1));
+    drop(aria_libc_mem_write_byte(buf, 6i64, a2));
+    drop(aria_libc_mem_write_byte(buf, 7i64, a3));
+
+    // sin_zero[8] — already zeroed by mmap
+
+    pass(buf);
+};
+
+// Free a sockaddr_in struct built by _sockaddr_in_build.
+pub func:_sockaddr_in_release = int64(int64:ptr) {
+    if (ptr == 0i64) { pass(0i64); }
+    Result<int64>:r = sys(MUNMAP, ptr, SOCKADDR_IN_SIZE);
+    int64:val = r ? -1i64;
+    pass(val);
+};
