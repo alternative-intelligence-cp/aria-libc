@@ -1,0 +1,300 @@
+// _proc_fork.aria — Pure Aria fork, exec, wait via sys!!()
+// Full tier — uses sys!!() for dangerous process operations.
+//
+// Port status:
+//   libc_fork — PURE sys!!(FORK)
+//   libc_execve — PURE sys!!(EXECVE) with string array builder
+//   libc_waitpid — PURE sys!!(WAIT4) with status extraction
+//   libc_wait_status, libc_wait_exited, libc_wait_exit_code,
+//   libc_wait_signaled, libc_wait_signal — status macros
+//
+// Dependencies:
+//   _constants.aria — PROT_RW, MAP_ANON_PRIV, WNOHANG, etc.
+//   aria_libc_mem.c — write_int64, read_int32, write_string for argv building
+//
+// execve requires building:
+//   1. A null-terminated array of null-terminated C strings for argv
+//   2. A null-terminated array of null-terminated C strings for envp
+//   Both must be contiguous pointer arrays in memory.
+//
+// Usage:
+//   use "../src/_proc_fork.aria".*;
+//   use "../src/_constants.aria".*;
+
+use "_constants.aria".*;
+
+// ── Extern helpers ──────────────────────────────────────────────────
+extern func:aria_libc_mem_write_int64 = int64(int64:ptr, int64:offset, int64:val);
+extern func:aria_libc_mem_read_int64 = int64(int64:ptr, int64:offset);
+extern func:aria_libc_mem_read_int32 = int64(int64:ptr, int64:offset);
+extern func:aria_libc_mem_write_string = int64(int64:ptr, string:s);
+extern func:strdup = string(int64:ptr);
+
+// ══════════════════════════════════════════════════════════════════════
+// Fork
+// ══════════════════════════════════════════════════════════════════════
+
+// Fork the current process.
+// Returns: pid > 0 in parent (child's pid), 0 in child, -1 on error.
+pub func:libc_fork = int64() {
+    Result<int64>:r = sys!!(FORK);
+    int64:pid = r ? -1i64;
+    pass(pid);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Wait
+// ══════════════════════════════════════════════════════════════════════
+
+// Wait for a child process. Returns the child's pid, or -1 on error.
+// status_ptr: pointer to int32 where the kernel writes the wait status.
+//   Pass 0 to ignore status. Use libc_waitpid_alloc for convenience.
+// options: 0 for blocking, WNOHANG for non-blocking.
+// Note: WAIT4 = waitpid with rusage=NULL.
+pub func:libc_wait4 = int64(int64:pid, int64:status_ptr, int64:options) {
+    // wait4(pid, status_ptr, options, rusage=NULL)
+    Result<int64>:r = sys!!(WAIT4, pid, status_ptr, options, 0i64);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// Convenience: wait for a specific child, return its exit status.
+// Returns the raw 32-bit wait status (use libc_wait_exit_code to extract).
+// Returns -1 on error.
+pub func:libc_waitpid = int64(int64:pid) {
+    // Allocate 4 bytes for int32 status
+    Result<int64>:buf_r = sys(MMAP, 0i64, 8i64, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) { pass(-1i64); }
+
+    Result<int64>:r = sys!!(WAIT4, pid, buf, 0i64, 0i64);
+    int64:ret = r ? -1i64;
+
+    if (ret < 0i64) {
+        drop(sys(MUNMAP, buf, 8i64));
+        pass(-1i64);
+    }
+
+    int64:status = aria_libc_mem_read_int32(buf, 0i64);
+    drop(sys(MUNMAP, buf, 8i64));
+    pass(status);
+};
+
+// ── Wait status macros ──────────────────────────────────────────────
+// Linux wait status layout (32-bit int):
+//   bits 0-6: signal number if killed (0 if exited normally)
+//   bit 7:    core dump flag
+//   bits 8-15: exit code if exited normally
+
+// WIFEXITED: true if child exited normally (signal bits == 0)
+pub func:libc_wait_exited = int64(int64:status) {
+    int64:sig = status - (status / 128i64) * 128i64;
+    if (sig == 0i64) { pass(1i64); }
+    pass(0i64);
+};
+
+// WEXITSTATUS: extract exit code (bits 8-15)
+pub func:libc_wait_exit_code = int64(int64:status) {
+    int64:code = status / 256i64;
+    int64:masked = code - (code / 256i64) * 256i64;
+    pass(masked);
+};
+
+// WIFSIGNALED: true if child was killed by a signal
+pub func:libc_wait_signaled = int64(int64:status) {
+    int64:sig = status - (status / 128i64) * 128i64;
+    if (sig > 0i64) { pass(1i64); }
+    pass(0i64);
+};
+
+// WTERMSIG: extract signal number (bits 0-6)
+pub func:libc_wait_signal = int64(int64:status) {
+    int64:sig = status - (status / 128i64) * 128i64;
+    pass(sig);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Exec
+// ══════════════════════════════════════════════════════════════════════
+
+// Build a null-terminated argv array from up to 4 string arguments.
+// Returns pointer to the array, or 0 on failure.
+// Caller must release with _argv_release(ptr, count).
+//
+// Layout (mmap'd region):
+//   [ptr0][ptr1]...[ptrN][NULL]   — each ptr is 8 bytes (int64)
+//   where ptr0 points to a strdup'd copy of arg0, etc.
+//
+// We strdup each string so the kernel can read them during execve.
+// The strings need to be in writable memory (mmap'd).
+
+// Build argv for a single-arg command (e.g., /bin/true → argv=["/bin/true", NULL])
+pub func:_argv_build_1 = int64(string:arg0) {
+    // 2 pointers: arg0, NULL → 16 bytes
+    Result<int64>:buf_r = sys(MMAP, 0i64, 16i64, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) { pass(0i64); }
+
+    // Allocate string buffer and write arg0
+    int64:slen = string_length(arg0) + 1i64;
+    Result<int64>:s_r = sys(MMAP, 0i64, slen, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:sbuf = s_r ? 0i64;
+    if (sbuf < 1i64) {
+        drop(sys(MUNMAP, buf, 16i64));
+        pass(0i64);
+    }
+    drop(aria_libc_mem_write_string(sbuf, arg0));
+
+    // argv[0] = sbuf, argv[1] = NULL
+    drop(aria_libc_mem_write_int64(buf, 0i64, sbuf));
+    drop(aria_libc_mem_write_int64(buf, 8i64, 0i64));
+
+    pass(buf);
+};
+
+// Build argv for a two-arg command (e.g., /bin/sh -c → argv=["/bin/sh", "-c", NULL])
+pub func:_argv_build_2 = int64(string:arg0, string:arg1) {
+    // 3 pointers: arg0, arg1, NULL → 24 bytes
+    Result<int64>:buf_r = sys(MMAP, 0i64, 24i64, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) { pass(0i64); }
+
+    int64:slen0 = string_length(arg0) + 1i64;
+    Result<int64>:s0_r = sys(MMAP, 0i64, slen0, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:sbuf0 = s0_r ? 0i64;
+    drop(aria_libc_mem_write_string(sbuf0, arg0));
+
+    int64:slen1 = string_length(arg1) + 1i64;
+    Result<int64>:s1_r = sys(MMAP, 0i64, slen1, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:sbuf1 = s1_r ? 0i64;
+    drop(aria_libc_mem_write_string(sbuf1, arg1));
+
+    drop(aria_libc_mem_write_int64(buf, 0i64, sbuf0));
+    drop(aria_libc_mem_write_int64(buf, 8i64, sbuf1));
+    drop(aria_libc_mem_write_int64(buf, 16i64, 0i64));
+
+    pass(buf);
+};
+
+// Build argv for a three-arg command (e.g., /bin/sh -c "echo hi")
+pub func:_argv_build_3 = int64(string:arg0, string:arg1, string:arg2) {
+    // 4 pointers → 32 bytes
+    Result<int64>:buf_r = sys(MMAP, 0i64, 32i64, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) { pass(0i64); }
+
+    int64:slen0 = string_length(arg0) + 1i64;
+    Result<int64>:s0_r = sys(MMAP, 0i64, slen0, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:sbuf0 = s0_r ? 0i64;
+    drop(aria_libc_mem_write_string(sbuf0, arg0));
+
+    int64:slen1 = string_length(arg1) + 1i64;
+    Result<int64>:s1_r = sys(MMAP, 0i64, slen1, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:sbuf1 = s1_r ? 0i64;
+    drop(aria_libc_mem_write_string(sbuf1, arg1));
+
+    int64:slen2 = string_length(arg2) + 1i64;
+    Result<int64>:s2_r = sys(MMAP, 0i64, slen2, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:sbuf2 = s2_r ? 0i64;
+    drop(aria_libc_mem_write_string(sbuf2, arg2));
+
+    drop(aria_libc_mem_write_int64(buf, 0i64, sbuf0));
+    drop(aria_libc_mem_write_int64(buf, 8i64, sbuf1));
+    drop(aria_libc_mem_write_int64(buf, 16i64, sbuf2));
+    drop(aria_libc_mem_write_int64(buf, 24i64, 0i64));
+
+    pass(buf);
+};
+
+// Release an argv array built by _argv_build_*.
+// count = number of string args (not counting NULL).
+// Note: each string was mmap'd individually. Since mmap always allocates
+// at minimum one page (4096 bytes), and our strings are < 4096 bytes,
+// we munmap PAGE_SIZE bytes for each string buffer.
+pub func:_argv_release = int64(int64:argv, int64:count) {
+    if (argv == 0i64) { pass(0i64); }
+    // Free each string buffer stored in the argv array
+    loop(0, count, 1) {
+        int64:offset = $ * 8i64;
+        int64:sptr = aria_libc_mem_read_int64(argv, offset);
+        if (sptr > 0i64) {
+            drop(sys(MUNMAP, sptr, PATH_MAX_SIZE));
+        }
+    }
+    // Free argv array itself: (count+1) * 8 bytes
+    int64:arr_size = (count + 1i64) * 8i64;
+    drop(sys(MUNMAP, argv, arr_size));
+    pass(0i64);
+};
+
+// Build an empty envp (just a NULL pointer). For inheriting parent's environment.
+pub func:_envp_empty = int64() {
+    Result<int64>:buf_r = sys(MMAP, 0i64, 8i64, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) { pass(0i64); }
+    drop(aria_libc_mem_write_int64(buf, 0i64, 0i64));
+    pass(buf);
+};
+
+// Execute a program (replaces current process image).
+// path: absolute path to executable (e.g., "/bin/ls")
+// argv: pointer to null-terminated string array (from _argv_build_*)
+// envp: pointer to null-terminated string array (from _envp_empty or custom)
+// Returns -1 on error (if execve returns, it always failed).
+pub func:libc_execve = int64(string:path, int64:argv, int64:envp) {
+    Result<int64>:r = sys!!(EXECVE, path, argv, envp);
+    int64:ret = r ? -1i64;
+    // If we get here, execve failed
+    pass(-1i64);
+};
+
+// Convenience: fork + exec a command with up to 3 args, wait for it to finish.
+// Returns the child's exit code, or -1 on error.
+pub func:libc_run_cmd = int64(string:path) {
+    int64:pid = raw(libc_fork());
+    if (pid < 0i64) { pass(-1i64); }
+
+    if (pid == 0i64) {
+        // Child process
+        int64:argv = raw(_argv_build_1(path));
+        int64:envp = raw(_envp_empty());
+        drop(raw(libc_execve(path, argv, envp)));
+        // If execve returns, it failed — must use syscall to exit
+        drop(sys!!(EXIT_GROUP, 127i64));
+    }
+
+    // Parent: wait for child
+    int64:status = raw(libc_waitpid(pid));
+    int64:exited = raw(libc_wait_exited(status));
+    if (exited == 1i64) {
+        int64:code = raw(libc_wait_exit_code(status));
+        pass(code);
+    }
+    pass(-1i64);
+};
+
+// Convenience: fork + exec /bin/sh -c "command", wait for it to finish.
+// Equivalent to the C system() call.
+// Returns the command's exit code, or -1 on error.
+pub func:libc_system = int64(string:cmd) {
+    int64:pid = raw(libc_fork());
+    if (pid < 0i64) { pass(-1i64); }
+
+    if (pid == 0i64) {
+        // Child: exec /bin/sh -c "cmd"
+        int64:argv = raw(_argv_build_3("/bin/sh", "-c", cmd));
+        int64:envp = raw(_envp_empty());
+        drop(raw(libc_execve("/bin/sh", argv, envp)));
+        // If execve returns, it failed — must use syscall to exit
+        drop(sys!!(EXIT_GROUP, 127i64));
+    }
+
+    // Parent: wait for child
+    int64:status = raw(libc_waitpid(pid));
+    int64:exited = raw(libc_wait_exited(status));
+    if (exited == 1i64) {
+        int64:code = raw(libc_wait_exit_code(status));
+        pass(code);
+    }
+    pass(-1i64);
+};

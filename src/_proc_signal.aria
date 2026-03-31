@@ -1,0 +1,53 @@
+// _proc_signal.aria — Pure Aria signal sending via sys!!()
+// Full tier — kill() is gated behind sys!!().
+//
+// Port status:
+//   libc_kill — PURE sys!!(KILL)
+//   libc_signal_self — convenience for signaling current process
+//
+// Dependencies:
+//   _constants.aria — signal constants (SIGTERM, SIGKILL, etc.)
+//
+// Note: Signal HANDLING (rt_sigaction) is NOT implemented here.
+// This module only covers signal SENDING. Handlers require complex
+// struct building (struct sigaction) and are deferred to v0.2.7.
+//
+// Usage:
+//   use "../src/_proc_signal.aria".*;
+//   use "../src/_constants.aria".*;
+
+use "_constants.aria".*;
+
+// ══════════════════════════════════════════════════════════════════════
+// Kill — send a signal to a process
+// ══════════════════════════════════════════════════════════════════════
+
+// Send a signal to a process. Returns 0 on success, -1 on error.
+// pid > 0: send to specific process
+// pid == 0: send to all processes in the calling process's group
+// pid == -1: send to all processes the caller has permission to signal
+// pid < -1: send to all processes in process group |pid|
+pub func:libc_kill = int64(int64:pid, int64:sig) {
+    Result<int64>:r = sys!!(KILL, pid, sig);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// Send a signal to the current process (self-signal).
+pub func:libc_signal_self = int64(int64:sig) {
+    Result<int64>:pid_r = sys(GETPID);
+    int64:pid = pid_r ? -1i64;
+    if (pid < 0i64) { pass(-1i64); }
+    Result<int64>:r = sys!!(KILL, pid, sig);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// Check if a process is alive by sending signal 0 (no actual signal sent).
+// Returns 1 if process exists and we have permission, 0 otherwise.
+pub func:libc_process_exists = int64(int64:pid) {
+    Result<int64>:r = sys!!(KILL, pid, 0i64);
+    int64:ret = r ? -1i64;
+    if (ret == 0i64) { pass(1i64); }
+    pass(0i64);
+};

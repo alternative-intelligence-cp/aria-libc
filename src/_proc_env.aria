@@ -1,0 +1,45 @@
+// _proc_env.aria — Pure Aria getcwd/chdir via sys()
+// Safe tier — no sys!!() needed.
+//
+// Port status:
+//   libc_getcwd_pure — PURE sys(GETCWD) → string
+//   libc_chdir_pure  — PURE sys(CHDIR, path) → int64
+//
+// Note: getenv/setenv/unsetenv remain in C shim (aria_libc_process.c).
+// These are libc library functions, not syscalls — Linux has no getenv
+// or setenv syscall. The environment is managed in process memory by libc.
+// Reading /proc/self/environ only gives the initial environment at exec time,
+// not runtime setenv changes. So C shim is the correct approach for those.
+//
+// Dependencies:
+//   _constants.aria — PATH_MAX_SIZE (for reference)
+//
+// Usage:
+//   use "../src/_proc_env.aria".*;
+//   string:cwd = raw(libc_getcwd_pure());
+
+use "_constants.aria".*;
+
+// ══════════════════════════════════════════════════════════════════════
+// Get current working directory
+// ══════════════════════════════════════════════════════════════════════
+
+// Returns the current working directory as a string.
+// The compiler auto-manages a 4096-byte buffer for GETCWD and returns
+// Result<string>, which we unwrap here with "" fallback.
+pub func:libc_getcwd_pure = string() {
+    Result<string>:r = sys(GETCWD);
+    string:val = r ? "";
+    pass(val);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Change working directory
+// ══════════════════════════════════════════════════════════════════════
+
+// Change the current working directory. Returns 0 on success, -1 on error.
+pub func:libc_chdir_pure = int64(string:path) {
+    Result<int64>:r = sys(CHDIR, path);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};

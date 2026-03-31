@@ -1,0 +1,348 @@
+// test_proc_pure.aria — Tests for pure sys() process management modules
+//
+// Tests: _proc_pipe.aria, _proc_fork.aria, _proc_signal.aria, _proc_env.aria
+//
+// Compile:
+//   ./scripts/build_static.sh tests/test_proc_pure.aria -o build/static-tests/proc_pure -laria_libc_mem
+//
+// Note: Fork/exec tests create child processes. Tests are designed to be
+// self-contained and safe. Signal tests only test signal 0 (no-op probe).
+
+use "../src/_constants.aria".*;
+use "../src/_proc_pipe.aria".*;
+use "../src/_proc_fork.aria".*;
+use "../src/_proc_signal.aria".*;
+use "../src/_proc_env.aria".*;
+use "../src/_identity.aria".*;
+
+int64:pass_count = 0i64;
+int64:fail_count = 0i64;
+
+func:assert_eq_int = NIL(int64:actual, int64:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + string_from_int(expected)));
+        drop(print("    actual:   " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_gt_int = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual > threshold) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected > " + string_from_int(threshold)));
+        drop(print("    actual:    " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_gte_int = NIL(int64:actual, int64:threshold, string:msg) {
+    if (actual >= threshold) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected >= " + string_from_int(threshold)));
+        drop(print("    actual:     " + string_from_int(actual)));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_str_eq = NIL(string:actual, string:expected, string:msg) {
+    if (actual == expected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    expected: " + expected));
+        drop(print("    actual:   " + actual));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:assert_str_neq = NIL(string:actual, string:unexpected, string:msg) {
+    if (actual != unexpected) {
+        drop(print("  PASS: " + msg));
+        pass_count = pass_count + 1i64;
+    } else {
+        drop(print("  FAIL: " + msg));
+        drop(print("    should not be: " + unexpected));
+        fail_count = fail_count + 1i64;
+    }
+    pass(NIL);
+};
+
+func:failsafe = int32(tbb32:err) {
+    drop(print("FAILSAFE triggered"));
+    exit(1);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: Pipe operations
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_pipe = NIL() {
+    drop(println("=== Pipe ==="));
+
+    // Create a pipe
+    int64:encoded = raw(libc_pipe());
+    drop(assert_gt_int(encoded, 0i64, "libc_pipe() returns positive encoded pair"));
+
+    // Extract fds
+    int64:rfd = raw(libc_pipe_read_fd(encoded));
+    int64:wfd = raw(libc_pipe_write_fd(encoded));
+    drop(assert_gte_int(rfd, 0i64, "read fd >= 0"));
+    drop(assert_gte_int(wfd, 0i64, "write fd >= 0"));
+
+    // Read and write fds should be different
+    int64:fds_differ = 0i64;
+    if (rfd != wfd) { fds_differ = 1i64; }
+    drop(assert_eq_int(fds_differ, 1i64, "read fd != write fd"));
+
+    // Close both fds
+    drop(sys(CLOSE, rfd));
+    drop(sys(CLOSE, wfd));
+
+    // Test pipe with O_CLOEXEC
+    int64:encoded2 = raw(libc_pipe_cloexec());
+    drop(assert_gt_int(encoded2, 0i64, "libc_pipe_cloexec() returns positive encoded pair"));
+
+    int64:rfd2 = raw(libc_pipe_read_fd(encoded2));
+    int64:wfd2 = raw(libc_pipe_write_fd(encoded2));
+    drop(sys(CLOSE, rfd2));
+    drop(sys(CLOSE, wfd2));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: Dup operations
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_dup = NIL() {
+    drop(println("=== Dup ==="));
+
+    // Create a pipe to get a valid fd
+    int64:encoded = raw(libc_pipe());
+    int64:rfd = raw(libc_pipe_read_fd(encoded));
+    int64:wfd = raw(libc_pipe_write_fd(encoded));
+
+    // dup the read fd
+    int64:new_fd = raw(libc_dup(rfd));
+    drop(assert_gt_int(new_fd, 0i64, "libc_dup() returns new fd > 0"));
+
+    // new_fd should be different from rfd
+    int64:dup_differ = 0i64;
+    if (new_fd != rfd) { dup_differ = 1i64; }
+    drop(assert_eq_int(dup_differ, 1i64, "dup'd fd != original fd"));
+
+    // dup2 onto a specific fd
+    int64:target = new_fd + 10i64;
+    int64:dup2_ret = raw(libc_dup2(rfd, target));
+    drop(assert_eq_int(dup2_ret, target, "libc_dup2() returns target fd"));
+
+    // Cleanup
+    drop(sys(CLOSE, rfd));
+    drop(sys(CLOSE, wfd));
+    drop(sys(CLOSE, new_fd));
+    drop(sys(CLOSE, target));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: Signal operations (safe — only signal 0 probe)
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_signal = NIL() {
+    drop(println("=== Signal ==="));
+
+    // Check if our own process exists (signal 0 = no-op, just checks permission)
+    int64:pid = raw(libc_getpid());
+    int64:exists = raw(libc_process_exists(pid));
+    drop(assert_eq_int(exists, 1i64, "libc_process_exists(self) = 1"));
+
+    // Check a non-existent process (pid -1 is special, use a high pid)
+    // PID 999999999 is almost certainly unused
+    int64:ghost = raw(libc_process_exists(999999999i64));
+    drop(assert_eq_int(ghost, 0i64, "libc_process_exists(999999999) = 0"));
+
+    // Kill with signal 0 on self should return 0
+    int64:kill_ret = raw(libc_kill(pid, 0i64));
+    drop(assert_eq_int(kill_ret, 0i64, "libc_kill(self, 0) = 0"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: Wait status macros
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_wait_status = NIL() {
+    drop(println("=== Wait Status Macros ==="));
+
+    // Normal exit with code 0: status = 0x0000 = 0
+    int64:status0 = 0i64;
+    drop(assert_eq_int(raw(libc_wait_exited(status0)), 1i64, "status 0 exited"));
+    drop(assert_eq_int(raw(libc_wait_exit_code(status0)), 0i64, "status 0 code 0"));
+    drop(assert_eq_int(raw(libc_wait_signaled(status0)), 0i64, "status 0 not signaled"));
+
+    // Normal exit with code 1: status = 0x0100 = 256
+    int64:status1 = 256i64;
+    drop(assert_eq_int(raw(libc_wait_exited(status1)), 1i64, "status 256 exited"));
+    drop(assert_eq_int(raw(libc_wait_exit_code(status1)), 1i64, "status 256 code 1"));
+
+    // Normal exit with code 42: status = 42 * 256 = 10752
+    int64:status42 = 10752i64;
+    drop(assert_eq_int(raw(libc_wait_exited(status42)), 1i64, "status 10752 exited"));
+    drop(assert_eq_int(raw(libc_wait_exit_code(status42)), 42i64, "status 10752 code 42"));
+
+    // Killed by SIGKILL (9): status = 9
+    int64:killed = 9i64;
+    drop(assert_eq_int(raw(libc_wait_exited(killed)), 0i64, "status 9 not exited"));
+    drop(assert_eq_int(raw(libc_wait_signaled(killed)), 1i64, "status 9 signaled"));
+    drop(assert_eq_int(raw(libc_wait_signal(killed)), 9i64, "status 9 signal 9"));
+
+    // Killed by SIGTERM (15): status = 15
+    int64:termed = 15i64;
+    drop(assert_eq_int(raw(libc_wait_signaled(termed)), 1i64, "status 15 signaled"));
+    drop(assert_eq_int(raw(libc_wait_signal(termed)), 15i64, "status 15 signal 15"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: getcwd / chdir (pure Aria)
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_cwd = NIL() {
+    drop(println("=== CWD (pure) ==="));
+
+    // getcwd should return non-empty string starting with /
+    string:cwd = raw(libc_getcwd_pure());
+    drop(assert_str_neq(cwd, "", "libc_getcwd_pure() non-empty"));
+
+    int64:cwd_len = string_length(cwd);
+    int64:starts_slash = 0i64;
+    if (cwd_len > 0i64) {
+        string:first = string_substring(cwd, 0i64, 1i64);
+        if (first == "/") { starts_slash = 1i64; }
+    }
+    drop(assert_eq_int(starts_slash, 1i64, "getcwd_pure starts with /"));
+
+    // chdir to /tmp
+    int64:cd_ret = raw(libc_chdir_pure("/tmp"));
+    drop(assert_eq_int(cd_ret, 0i64, "libc_chdir_pure(/tmp) = 0"));
+
+    string:new_cwd = raw(libc_getcwd_pure());
+    drop(assert_str_eq(new_cwd, "/tmp", "getcwd after chdir = /tmp"));
+
+    // Restore original cwd
+    int64:cd_back = raw(libc_chdir_pure(cwd));
+    drop(assert_eq_int(cd_back, 0i64, "chdir back = 0"));
+
+    // Bad chdir
+    int64:cd_bad = raw(libc_chdir_pure("/nonexistent_dir_xyz_123"));
+    int64:neg1 = 0i64 - 1i64;
+    drop(assert_eq_int(cd_bad, neg1, "chdir(bad) = -1"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: fork + exec + wait (libc_system)
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_fork_exec = NIL() {
+    drop(println("=== Fork/Exec ==="));
+
+    // libc_system("true") should return 0
+    int64:ret_true = raw(libc_system("true"));
+    drop(assert_eq_int(ret_true, 0i64, "libc_system(true) = 0"));
+
+    // libc_system("false") should return 1
+    int64:ret_false = raw(libc_system("false"));
+    drop(assert_eq_int(ret_false, 1i64, "libc_system(false) = 1"));
+
+    // libc_system with echo (just test it doesn't crash — echo goes to stdout)
+    int64:ret_echo = raw(libc_system("echo proc_test_marker > /dev/null"));
+    drop(assert_eq_int(ret_echo, 0i64, "libc_system(echo) = 0"));
+
+    // libc_run_cmd with /bin/true
+    int64:run_ret = raw(libc_run_cmd("/bin/true"));
+    drop(assert_eq_int(run_ret, 0i64, "libc_run_cmd(/bin/true) = 0"));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Test: argv build/release (internal helpers)
+// ══════════════════════════════════════════════════════════════════════
+
+func:test_argv = NIL() {
+    drop(println("=== Argv Build ==="));
+
+    // Build a 1-arg argv
+    int64:argv1 = raw(_argv_build_1("/bin/true"));
+    drop(assert_gt_int(argv1, 0i64, "_argv_build_1 returns valid ptr"));
+
+    // Release it
+    int64:rel1 = raw(_argv_release(argv1, 1i64));
+    drop(assert_eq_int(rel1, 0i64, "_argv_release(1) = 0"));
+
+    // Build a 3-arg argv
+    int64:argv3 = raw(_argv_build_3("/bin/sh", "-c", "true"));
+    drop(assert_gt_int(argv3, 0i64, "_argv_build_3 returns valid ptr"));
+
+    int64:rel3 = raw(_argv_release(argv3, 3i64));
+    drop(assert_eq_int(rel3, 0i64, "_argv_release(3) = 0"));
+
+    // Build and release empty envp
+    int64:envp = raw(_envp_empty());
+    drop(assert_gt_int(envp, 0i64, "_envp_empty returns valid ptr"));
+
+    // Release envp (1 slot: the NULL)
+    drop(sys(MUNMAP, envp, 8i64));
+
+    pass(NIL);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Main
+// ══════════════════════════════════════════════════════════════════════
+
+func:main = int32() {
+    drop(println("=== aria-libc Pure Process Tests (v0.2.6) ==="));
+    drop(println(""));
+
+    drop(test_pipe());
+    drop(test_dup());
+    drop(test_signal());
+    drop(test_wait_status());
+    drop(test_cwd());
+    drop(test_fork_exec());
+    drop(test_argv());
+
+    drop(println(""));
+    drop(println("=== Results ==="));
+    drop(print("PASS: " + string_from_int(pass_count)));
+    drop(println(""));
+    drop(print("FAIL: " + string_from_int(fail_count)));
+    drop(println(""));
+
+    if (fail_count > 0i64) {
+        exit(1);
+    }
+
+    exit(0);
+};

@@ -147,3 +147,39 @@ int64:POLLFD_SIZE       = 8i64;
 int64:POLLFD_OFF_FD     = 0i64;   // int32 fd      (4 bytes)
 int64:POLLFD_OFF_EVENTS = 4i64;   // int16 events  (2 bytes)
 int64:POLLFD_OFF_REVENTS = 6i64;  // int16 revents (2 bytes)
+
+// ══════════════════════════════════════════════════════════════════════
+// v0.2.6: Process Management
+// ══════════════════════════════════════════════════════════════════════
+
+// ── Signal numbers (Linux x86-64) ───────────────────────────────────
+int64:SIGHUP    = 1i64;
+int64:SIGINT    = 2i64;
+int64:SIGQUIT   = 3i64;
+int64:SIGILL    = 4i64;
+int64:SIGTRAP   = 5i64;
+int64:SIGABRT   = 6i64;
+int64:SIGBUS    = 7i64;
+int64:SIGFPE    = 8i64;
+int64:SIGKILL   = 9i64;
+int64:SIGUSR1   = 10i64;
+int64:SIGSEGV   = 11i64;
+int64:SIGUSR2   = 12i64;
+int64:SIGPIPE   = 13i64;
+int64:SIGALRM   = 14i64;
+int64:SIGTERM   = 15i64;
+int64:SIGCHLD   = 17i64;
+int64:SIGCONT   = 18i64;
+int64:SIGSTOP   = 19i64;
+int64:SIGTSTP   = 20i64;
+
+// ── waitpid options ─────────────────────────────────────────────────
+int64:WNOHANG   = 1i64;
+int64:WUNTRACED = 2i64;
+
+// ── pipe2 flags ─────────────────────────────────────────────────────
+int64:O_CLOEXEC_PIPE = 524288i64;  // O_CLOEXEC = 0x80000 = 524288
+
+// ── Environment/CWD buffer sizes ────────────────────────────────────
+int64:PATH_MAX_SIZE = 4096i64;
+int64:ENV_BUF_SIZE  = 4096i64;

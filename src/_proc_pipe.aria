@@ -1,0 +1,118 @@
+// _proc_pipe.aria — Pure Aria pipe & dup operations via sys()
+// Safe tier — no sys!!() needed.
+//
+// Port status:
+//   libc_pipe, libc_pipe_cloexec — PURE sys() (PIPE2)
+//   libc_dup, libc_dup2, libc_dup3 — PURE sys() (DUP, DUP2, DUP3)
+//
+// Dependencies:
+//   _constants.aria — O_CLOEXEC_PIPE
+//   aria_libc_mem.c — read_int32 for extracting fds from pipe buffer
+//
+// pipe2(pipefd, flags) writes two int32 fds at pipefd[0] and pipefd[1].
+// We mmap an 8-byte buffer, call sys(PIPE2), read the two int32 fds,
+// and return them encoded as: read_fd * 65536 + write_fd.
+// Caller unpacks with libc_pipe_read_fd / libc_pipe_write_fd helpers.
+//
+// Usage:
+//   use "../src/_proc_pipe.aria".*;
+//   use "../src/_constants.aria".*;
+
+use "_constants.aria".*;
+
+// ── Extern helpers ──────────────────────────────────────────────────
+extern func:aria_libc_mem_read_int32 = int64(int64:ptr, int64:offset);
+
+// ══════════════════════════════════════════════════════════════════════
+// Pipe
+// ══════════════════════════════════════════════════════════════════════
+
+// Create a pipe. Returns encoded pair: read_fd * 65536 + write_fd.
+// Returns -1 on failure. Use libc_pipe_read_fd / libc_pipe_write_fd to unpack.
+pub func:libc_pipe = int64() {
+    // Allocate 8 bytes for two int32 fds
+    Result<int64>:buf_r = sys(MMAP, 0i64, 8i64, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) { pass(-1i64); }
+
+    // pipe2(pipefd, flags=0)
+    Result<int64>:r = sys(PIPE2, buf, 0i64);
+    int64:ret = r ? -1i64;
+
+    if (ret < 0i64) {
+        drop(sys(MUNMAP, buf, 8i64));
+        pass(-1i64);
+    }
+
+    // Read the two int32 fds
+    int64:read_fd = aria_libc_mem_read_int32(buf, 0i64);
+    int64:write_fd = aria_libc_mem_read_int32(buf, 4i64);
+
+    drop(sys(MUNMAP, buf, 8i64));
+
+    // Encode as read_fd * 65536 + write_fd
+    int64:encoded = read_fd * 65536i64 + write_fd;
+    pass(encoded);
+};
+
+// Create a pipe with O_CLOEXEC. Same encoding as libc_pipe.
+pub func:libc_pipe_cloexec = int64() {
+    Result<int64>:buf_r = sys(MMAP, 0i64, 8i64, PROT_RW, MAP_ANON_PRIV, -1i64, 0i64);
+    int64:buf = buf_r ? 0i64;
+    if (buf < 1i64) { pass(-1i64); }
+
+    Result<int64>:r = sys(PIPE2, buf, O_CLOEXEC_PIPE);
+    int64:ret = r ? -1i64;
+
+    if (ret < 0i64) {
+        drop(sys(MUNMAP, buf, 8i64));
+        pass(-1i64);
+    }
+
+    int64:read_fd = aria_libc_mem_read_int32(buf, 0i64);
+    int64:write_fd = aria_libc_mem_read_int32(buf, 4i64);
+
+    drop(sys(MUNMAP, buf, 8i64));
+
+    int64:encoded = read_fd * 65536i64 + write_fd;
+    pass(encoded);
+};
+
+// Extract the read fd from an encoded pipe pair.
+pub func:libc_pipe_read_fd = int64(int64:encoded) {
+    int64:rfd = encoded / 65536i64;
+    pass(rfd);
+};
+
+// Extract the write fd from an encoded pipe pair.
+pub func:libc_pipe_write_fd = int64(int64:encoded) {
+    int64:rfd = encoded / 65536i64;
+    int64:wfd = encoded - rfd * 65536i64;
+    pass(wfd);
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// Dup
+// ══════════════════════════════════════════════════════════════════════
+
+// Duplicate a file descriptor. Returns new fd, or -1 on error.
+pub func:libc_dup = int64(int64:fd) {
+    Result<int64>:r = sys(DUP, fd);
+    int64:new_fd = r ? -1i64;
+    pass(new_fd);
+};
+
+// Duplicate fd onto target_fd. Returns target_fd on success, -1 on error.
+pub func:libc_dup2 = int64(int64:fd, int64:target_fd) {
+    Result<int64>:r = sys(DUP2, fd, target_fd);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
+
+// Duplicate fd onto target_fd with flags (e.g. O_CLOEXEC).
+// Returns target_fd on success, -1 on error.
+pub func:libc_dup3 = int64(int64:fd, int64:target_fd, int64:flags) {
+    Result<int64>:r = sys(DUP3, fd, target_fd, flags);
+    int64:ret = r ? -1i64;
+    pass(ret);
+};
