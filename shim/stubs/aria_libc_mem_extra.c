@@ -68,6 +68,11 @@ AriaString aria_libc_mem_make_string(void* src_ptr, int64_t offset, int64_t len)
         return result;
     }
     char* buf = (char*)malloc((size_t)len + 1);
+    if (!buf) {
+        result.data = "";
+        result.length = 0;
+        return result;
+    }
     memcpy(buf, (char*)src_ptr + offset, (size_t)len);
     buf[len] = '\0';
     result.data = buf;

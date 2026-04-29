@@ -45,12 +45,12 @@ static sig_handler_t saved_handlers[64];
 int aria_libc_process_signal_register(int signum, int64_t handler_ptr) {
     sig_handler_t h = signal(signum, (sig_handler_t)(unsigned long)handler_ptr);
     if (h == SIG_ERR) return -1;
-    if (signum < 64) saved_handlers[signum] = h;
+    if (signum >= 0 && signum < 64) saved_handlers[signum] = h;
     return 0;
 }
 
 int aria_libc_process_signal_restore(int signum) {
-    sig_handler_t h = (signum < 64) ? saved_handlers[signum] : SIG_DFL;
+    sig_handler_t h = (signum >= 0 && signum < 64) ? saved_handlers[signum] : SIG_DFL;
     return (signal(signum, h) == SIG_ERR) ? -1 : 0;
 }
 
